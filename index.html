@@ -115,11 +115,21 @@ function server(fn, args, ok, fail){
   if (!API) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[fn].apply(r, args); return; }
   var req = fn === 'ccAct'
     ? fetch(API, { method:'POST', credentials:'omit', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ fn:'act', args:args }) })
-    : fetch(API + '?api=' + (fn === 'ccLoad' ? 'load' : 'version') + '&k=' + encodeURIComponent(args[0]), { credentials:'omit', redirect:'follow' });
+    : fetchWithTimeout(API + '?api=' + (fn === 'ccLoad' ? 'load' : 'version') + '&k=' + encodeURIComponent(args[0]), 15000);
   req.then(function(res){ if (!res.ok) throw new Error('The server did not answer (' + res.status + '). Please try again in a moment.'); return res.json(); })
      .then(function(j){ if (j && j.error) fail(new Error(j.error)); else ok(j.result); })
-     .catch(function(e){ fail(new Error(/fetch|network|load failed/i.test(String(e && e.message)) ? 'Could not reach the server. Check your internet and try again.' : String((e && e.message) || e))); });
+     .catch(function(e){ if (e && e.name === 'AbortError') { var t = new Error('Google is taking too long to answer.'); t.timeout = true; return fail(t); }
+       fail(new Error(/fetch|network|load failed/i.test(String(e && e.message)) ? 'Could not reach the server. Check your internet and try again.' : String((e && e.message) || e))); });
 }
+function fetchWithTimeout(url, ms){
+  if (!window.AbortController) return fetch(url, { credentials:'omit', redirect:'follow' });
+  var c = new AbortController(), t = setTimeout(function(){ c.abort(); }, ms);
+  return fetch(url, { credentials:'omit', redirect:'follow', signal:c.signal }).then(function(r){ clearTimeout(t); return r; }, function(e){ clearTimeout(t); throw e; });
+}
+/* the last board this browser saw, so the page opens instantly while fresh data loads */
+function cacheKey(){ return 'ep_board_' + (BOOT && BOOT.k || ''); }
+function saveCopy(d){ try { localStorage.setItem(cacheKey(), JSON.stringify({ t: Date.now(), d: d })); } catch (e) {} }
+function readCopy(){ try { var x = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return x && x.d && (Date.now() - x.t) < 7*864e5 ? x : null; } catch (e) { return null; } }
 var CONNECTED = !!BOOT && (!!API || !!(window.google && google.script));
 var S = { data:null, open:{}, q:'', filter:'all', confirm:'' };
 var LANES = [
@@ -134,28 +144,42 @@ function toast(msg,bad){ var t=document.getElementById('toast'); t.textContent=m
 function todayIso(){ var p=S.data.today.split('/'); return p[2]+'-'+p[0]+'-'+p[1]; }
 function busy(on){ document.getElementById('app').classList.toggle('loading',!!on); }
 
-/* First load: never sit on "Loading…" in silence. After 20 s say what is happening; on an error say why; always offer Try again. */
+/* Opening the page: show the last saved copy at once (if this browser has one), then fetch fresh data.
+   If Google is slow, try again by itself (3 times), and never sit on "Loading…" in silence. */
 var loadTry=0;
 function load(){
-  var my=++loadTry, app=document.getElementById('app');
-  busy(true);
+  var my=++loadTry, app=document.getElementById('app'), attempt=0;
+  if(!S.data){ var copy=readCopy(); if(copy){ S.data=copy.d; S.version=''; S.stale=true; render();
+    toast('Showing your board from '+new Date(copy.t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+' · updating…'); } }
+  if(!S.stale) busy(true);
   var slow=setTimeout(function(){
     if(my!==loadTry || S.data) return;
     busy(false);
-    app.innerHTML='<div class="warn-box">Still loading your weddings… Google can take up to a minute when the page has not been opened for a while. '+
+    app.innerHTML='<div class="warn-box">Still loading your weddings… Google is slow right now; the page keeps trying by itself. '+
       'You can wait, or <button class="btn" onclick="load()">Try again</button></div>';
   },20000);
-  server('ccLoad',[BOOT.k],function(d){ clearTimeout(slow); S.data=d; S.version=d.version; S.lastFull=Date.now(); busy(false); render(); },
-    function(e){
-      clearTimeout(slow); if(my!==loadTry && !S.data) return; busy(false);
-      if(S.data){ toast(e.message||String(e),true); return; }
+  function go(){
+    attempt++;
+    server('ccLoad',[BOOT.k],function(d){
+      if(my!==loadTry) return;
+      clearTimeout(slow); var was=S.data, wasStale=S.stale;
+      S.data=d; S.version=d.version; S.lastFull=Date.now(); S.stale=false; busy(false); saveCopy(d);
+      if(wasStale){ var lanes=document.getElementById('lanes'), x=lanes?lanes.scrollLeft:0, y=window.scrollY; render(); lanes=document.getElementById('lanes'); if(lanes) lanes.scrollLeft=x; window.scrollTo(0,y); toast(changes(was,d)||'Up to date'); }
+      else render();
+    },function(e){
+      if(my!==loadTry) return;
+      if(e.timeout && attempt<3) return go();                 // Google was slow: ask again
+      clearTimeout(slow); busy(false);
+      if(S.data){ toast((S.stale?'Could not update the board: ':'')+(e.message||String(e)),true); return; }
       app.innerHTML='<div class="warn-box">'+esc(e.message||e)+' <button class="btn" onclick="load()">Try again</button></div>';
     });
+  }
+  go();
 }
 function act(a,key,video,date,value){
   busy(true);
   server('ccAct',[BOOT.k,a,key,video||'',date||'',value===undefined?'':value],
-    function(d){ S.data=d; S.version=d.version; S.lastFull=Date.now(); S.confirm=''; busy(false); render(); toast(d.note||'Saved'); },
+    function(d){ S.data=d; S.version=d.version; S.lastFull=Date.now(); S.confirm=''; S.stale=false; saveCopy(d); busy(false); render(); toast(d.note||'Saved'); },
     function(e){ busy(false); toast(e.message||String(e),true); });
 }
 /* two taps for anything that is hard to undo */
@@ -519,7 +543,7 @@ function quietLoad(){
     polling=false;
     if(userBusy()) return;                       // you started typing meanwhile: try again next round
     var msg=changes(S.data,d), lanes=document.getElementById('lanes'), x=lanes?lanes.scrollLeft:0, y=window.scrollY;
-    S.data=d; S.version=d.version; S.lastFull=Date.now(); render();
+    S.data=d; S.version=d.version; S.lastFull=Date.now(); S.stale=false; saveCopy(d); render();
     lanes=document.getElementById('lanes'); if(lanes) lanes.scrollLeft=x; window.scrollTo(0,y);
     if(msg) toast(msg);
   },function(){ polling=false; });
