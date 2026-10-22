@@ -25,6 +25,8 @@
   header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
   h1{font-family:var(--serif);font-weight:400;font-size:28px;margin:0;letter-spacing:.02em}
   .sub{color:var(--muted);font-size:13px}
+  .found{border-left:3px solid var(--ok,#8CF5A8);background:rgba(140,245,168,.08);padding:8px 10px;margin:4px 0 10px;font-size:13px;word-break:break-word}
+  .found-in{flex-basis:100%;color:#8CF5A8}
   .label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
   .tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;text-align:left;font:inherit;color:inherit}
@@ -359,6 +361,7 @@ function cardHtml(c){
     '<div class="meta">'+esc(c.date)+(c.pkg?' · '+esc(c.pkg):'')+(c.lead?' · Lead '+esc(c.lead):'')+(c.city?' · '+esc(c.city):'')+'</div>'+
     steps(c)+'<div class="pills">';
   if(c.stage==='footage') h+='<span class="pill s-'+(c.footageStatus==='late'?'late':'waiting')+'">Footage '+(c.footageStatus==='late'?'late · ':'')+'due '+esc(c.footageDue)+'</span>';
+  if(c.stage==='footage' && nasOf(c).footage.length) h+='<span class="pill s-ready">Footage found in NAS</span>';
   if(c.inRevision) h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+'</span>';
   if(c.stage==='upcoming') h+='<span class="pill s-upcoming">Wedding in '+(-c.daysSince)+(c.daysSince===-1?' day':' days')+'</span>';
   if(c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return SENDS[r][0];}).join(' + ')+'</span>';
@@ -387,6 +390,7 @@ function detailHtml(c){
   }
   if(c.stage==='footage'){
     if(!admin) return '<div class="sub">Waiting for Rafael to confirm the footage is in the NAS.</div>'+notesEditor(c,K);
+    if(nasOf(c).footage.length) h+='<div class="found">Found in the NAS: '+nasOf(c).footage.map(esc).join(', ')+'<br>Check it, then confirm below.</div>';
     h+='<div class="label">Footage is in the NAS</div>';
     c.videos.forEach(function(v){
       h+='<div class="row"><span class="name">'+v.label+'</span><select id="'+kid(c,'e'+v.type)+'">'+
@@ -415,6 +419,7 @@ function detailHtml(c){
     if(admin && !v.done){
       h+='<select onchange="act(\'editor\','+K+',\''+v.type+'\',\'\',this.value)">'+EDS.concat(['none']).map(function(e){return '<option value="'+e+'"'+(v.editor===e?' selected':'')+'>'+(e==='none'?'No '+v.label:e)+'</option>';}).join('')+'</select>';
       h+=dateInput(kid(c,'d'+v.type))+'<button class="btn ghost" onclick="act(\'done\','+K+',\''+v.type+'\',val(\''+kid(c,'d'+v.type)+'\'))">Mark delivered</button>';
+      var fe=(nasOf(c).editors[v.editor]||[]); if(fe.length) h+='<span class="sub found-in">Found in '+esc(v.editor)+'’s folder: '+fe.map(esc).join(', ')+'</span>';
     }
     if(admin && v.done){ var cid=c.key+'|u'+v.type; h+='<button class="btn ghost" onclick="twice(\''+esc(cid).replace(/'/g,'')+'\',function(){act(\'undone\','+K+',\''+v.type+'\')})">'+(S.confirm===cid.replace(/'/g,'')?'Tap again: undo':'Undo delivered')+'</button>'; }
     h+='</div>';
@@ -461,6 +466,8 @@ function detailHtml(c){
   }
   return h;
 }
+/* what the NAS report saw for this wedding (only Rafael and Maga get it) */
+function nasOf(c){ var n=(S.data&&S.data.nas||{})[c.key]; return n||{footage:[],editors:{}}; }
 function markFootage(key){
   var c=S.data.cards.filter(function(x){return x.key===key;})[0], pick={done:{}};
   for(var i=0;i<c.videos.length;i++){
