@@ -116,9 +116,9 @@ function server(fn, args, ok, fail){
   var req = fn === 'ccAct'
     ? fetch(API, { method:'POST', credentials:'omit', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ fn:'act', args:args }) })
     : fetch(API + '?api=' + (fn === 'ccLoad' ? 'load' : 'version') + '&k=' + encodeURIComponent(args[0]), { credentials:'omit', redirect:'follow' });
-  req.then(function(res){ if (!res.ok) throw new Error('The server did not answer (' + res.status + '). Tap Refresh to try again.'); return res.json(); })
+  req.then(function(res){ if (!res.ok) throw new Error('The server did not answer (' + res.status + '). Please try again in a moment.'); return res.json(); })
      .then(function(j){ if (j && j.error) fail(new Error(j.error)); else ok(j.result); })
-     .catch(function(e){ fail(new Error(/fetch|network|load failed/i.test(String(e && e.message)) ? 'Could not reach the server. Check your internet and tap Refresh.' : String((e && e.message) || e))); });
+     .catch(function(e){ fail(new Error(/fetch|network|load failed/i.test(String(e && e.message)) ? 'Could not reach the server. Check your internet and try again.' : String((e && e.message) || e))); });
 }
 var CONNECTED = !!BOOT && (!!API || !!(window.google && google.script));
 var S = { data:null, open:{}, q:'', filter:'all', confirm:'' };
@@ -134,10 +134,23 @@ function toast(msg,bad){ var t=document.getElementById('toast'); t.textContent=m
 function todayIso(){ var p=S.data.today.split('/'); return p[2]+'-'+p[0]+'-'+p[1]; }
 function busy(on){ document.getElementById('app').classList.toggle('loading',!!on); }
 
+/* First load: never sit on "Loading…" in silence. After 20 s say what is happening; on an error say why; always offer Try again. */
+var loadTry=0;
 function load(){
+  var my=++loadTry, app=document.getElementById('app');
   busy(true);
-  server('ccLoad',[BOOT.k],function(d){ S.data=d; S.version=d.version; S.lastFull=Date.now(); busy(false); render(); },
-    function(e){ busy(false); document.getElementById('app').innerHTML='<div class="warn-box">'+esc(e.message||e)+'</div>'; });
+  var slow=setTimeout(function(){
+    if(my!==loadTry || S.data) return;
+    busy(false);
+    app.innerHTML='<div class="warn-box">Still loading your weddings… Google can take up to a minute when the page has not been opened for a while. '+
+      'You can wait, or <button class="btn" onclick="load()">Try again</button></div>';
+  },20000);
+  server('ccLoad',[BOOT.k],function(d){ clearTimeout(slow); S.data=d; S.version=d.version; S.lastFull=Date.now(); busy(false); render(); },
+    function(e){
+      clearTimeout(slow); if(my!==loadTry && !S.data) return; busy(false);
+      if(S.data){ toast(e.message||String(e),true); return; }
+      app.innerHTML='<div class="warn-box">'+esc(e.message||e)+' <button class="btn" onclick="load()">Try again</button></div>';
+    });
 }
 function act(a,key,video,date,value){
   busy(true);
