@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>EP Films · Editing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    color-scheme: dark;
+    --ink:#F5F2EC; --cocoa:#D9CFC6; --muted:#B5ABA2; --taupe:#7D7168; --line:#3A3530; --ground:#121110; --card:#1E1C1A; --lane:#181715; --field:#272420;
+    --ok-fg:#B7D6B1; --ok-bg:#1E2B1F; --ok-bd:#3E5A3B;
+    --wait-fg:#CFC5BC; --wait-bg:#26231F; --wait-bd:#3F3A34;
+    --due-fg:#F0CF85; --due-bg:#2E2616; --due-bd:#62501F;
+    --bad-fg:#F4ADA4; --bad-bg:#3A1C19; --bad-bd:#73352E;
+    --bar-done:#6E9B68; --bar-due:#C9A24E; --bar-late:#D0604F;
+    --btn:#5A4A40; --btn-bd:#7A675A;
+    --serif: Georgia, 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.4}
+  .wrap{max-width:1400px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-family:var(--serif);font-weight:400;font-size:28px;margin:0;letter-spacing:.02em}
+  .sub{color:var(--muted);font-size:13px}
+  .label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+  .tile .n{font-family:var(--serif);font-size:30px;line-height:1.1}
+  .tile.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .tile.bad .n{color:var(--bad-fg)}
+  .loads{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px}
+  .load{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .bar{height:8px;border-radius:4px;background:var(--wait-bg);overflow:hidden;display:flex;margin-top:6px}
+  .bar i{display:block;height:100%}
+  .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  input[type=search],input[type=date],select,textarea{font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--field);color:var(--ink)}
+  input[type=search]{flex:1;min-width:180px}
+  .chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+  .chip.on{background:var(--btn);color:#fff;border-color:var(--btn-bd)}
+  .board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(290px,1fr);gap:12px;overflow-x:auto;padding-bottom:8px}
+  .hscroll{position:sticky;top:0;z-index:5;background:var(--ground);display:flex;align-items:center;gap:8px;padding:8px 0;margin-bottom:6px}
+  .hscroll.off{display:none}
+  .track{flex:1;position:relative;height:18px;border-radius:9px;background:var(--lane);border:1px solid var(--line);cursor:pointer;touch-action:none}
+  .thumb{position:absolute;top:2px;bottom:2px;left:0;min-width:40px;border-radius:7px;background:var(--btn-bd);cursor:grab}
+  .thumb:hover,.thumb.drag{background:var(--muted)} .thumb.drag{cursor:grabbing}
+  .board::-webkit-scrollbar{height:12px} .board::-webkit-scrollbar-track{background:var(--lane);border-radius:8px}
+  .board::-webkit-scrollbar-thumb{background:var(--btn-bd);border-radius:8px;border:3px solid var(--lane)}
+  .arrow{min-width:40px;font-size:15px;line-height:1}
+  .lane{background:var(--lane);border:1px solid var(--line);border-radius:12px;padding:10px;scroll-snap-align:start;min-height:120px}
+  .lane h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cocoa);margin:2px 4px 10px;display:flex;justify-content:space-between}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;cursor:pointer}
+  .card.late{border-left:4px solid var(--bar-late)}
+  .couple{font-family:var(--serif);font-size:19px;line-height:1.2}
+  .meta{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .steps{display:flex;gap:4px;margin:10px 0 8px}
+  .steps span{flex:1;height:6px;border-radius:3px;background:var(--line)}
+  .steps .done{background:var(--bar-done)} .steps .due{background:var(--bar-due)} .steps .late{background:var(--bar-late)} .steps .ok{background:var(--taupe)}
+  .pills{display:flex;flex-wrap:wrap;gap:6px}
+  .pill{font-size:12px;border-radius:6px;padding:3px 8px;border:1px solid}
+  .s-done{color:var(--ok-fg);background:var(--ok-bg);border-color:var(--ok-bd)}
+  .s-ok,.s-waiting,.s-upcoming{color:var(--wait-fg);background:var(--wait-bg);border-color:var(--wait-bd)}
+  .s-due{color:var(--due-fg);background:var(--due-bg);border-color:var(--due-bd)}
+  .s-late{color:var(--bad-fg);background:var(--bad-bg);border-color:var(--bad-bd)}
+  .detail{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;cursor:default}
+  .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .row .name{min-width:96px;font-weight:600;font-size:13px}
+  .btn{font:inherit;font-size:13px;border-radius:8px;padding:8px 12px;border:1px solid var(--btn-bd);background:var(--btn);color:#fff;cursor:pointer}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+  .btn.warn{background:#8C3A32;border-color:#8C3A32}
+  .btn:disabled{opacity:.5;cursor:default}
+  a.btn{text-decoration:none;display:inline-block}
+  .empty{color:var(--muted);font-size:13px;padding:8px 4px}
+  .warn-box{background:var(--bad-bg);color:var(--bad-fg);border:1px solid var(--bad-bd);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px}
+  #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#33302C;color:#fff;border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:14px;display:none;max-width:90vw;z-index:9}
+  #toast.bad{background:#8C3A32}
+  .loading{opacity:.5;pointer-events:none}
+  .ed-list .card{cursor:default}
+  .big{font-size:15px;padding:12px 16px}
+  .btn.small{font-size:12px;padding:5px 10px;margin-top:10px}
+  .notes-box{border:1px solid var(--due-bd);background:var(--due-bg);color:var(--due-fg);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:14px;white-space:pre-wrap}
+  .notes-box b{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}
+  .rev-box{border-color:var(--bad-bd);background:var(--bad-bg);color:var(--bad-fg)}
+  .chk{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+  .chk input{accent-color:#7A675A;width:16px;height:16px}
+  .s-ready{color:#BFD3F0;background:#1B2533;border-color:#33496A}
+  .notes-box .txt{max-height:6.2em;overflow:hidden}
+  .notes-box.full .txt{max-height:none}
+  .more{font:inherit;font-size:13px;background:none;border:0;color:inherit;text-decoration:underline;padding:6px 0 0;cursor:pointer}
+  #modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:8;padding:16px}
+  #modal.on{display:flex}
+  #modal .box{background:var(--card);border:1px solid var(--line);border-radius:12px;width:min(820px,100%);max-height:94vh;display:flex;flex-direction:column;gap:12px;padding:18px}
+  #modal .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  #modal textarea{width:100%;min-height:52vh;resize:vertical;font-size:16px;line-height:1.55}
+  #modal .view{white-space:pre-wrap;overflow:auto;font-size:16px;line-height:1.6;min-height:20vh;padding:4px 2px}
+  #modal select{align-self:flex-start}
+  .btn:focus-visible,.chip:focus-visible,.more:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--due-fg);outline-offset:2px}
+  @media (max-width:640px){ .wrap{padding:12px} h1{font-size:23px} .board{grid-auto-columns:88%;scroll-snap-type:x mandatory} .hscroll{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="sub">Loading…</p></div>
+<div id="modal" onclick="if(event.target===this&&M&&M.mode==='view')closeModal()"></div>
+<div id="toast"></div>
+<script>window.EP_API="https://script.google.com/macros/s/AKfycbxjnfOSfxHyKDTHs1bEDh1jUUHruvAzmZEjYDTtr_6uwKSwm3DveB2-LFidnfmbZrOm2A/exec";</script>
+<script>
+var BOOT = null;
+try { BOOT = JSON.parse(document.getElementById('boot').textContent); } catch (e) { BOOT = null; }
+/* Two ways in: inside Google (google.script.run) or from the GitHub page (plain web requests, no Google login needed). */
+var API = window.EP_API || '';
+if (!BOOT && API) { var qk = (location.search.match(/[?&]k=([a-z0-9]{20})/) || [])[1]; if (qk) BOOT = { k: qk }; }
+function server(fn, args, ok, fail){
+  if (!API) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[fn].apply(r, args); return; }
+  var req = fn === 'ccAct'
+    ? fetch(API, { method:'POST', credentials:'omit', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ fn:'act', args:args }) })
+    : fetch(API + '?api=' + (fn === 'ccLoad' ? 'load' : 'version') + '&k=' + encodeURIComponent(args[0]), { credentials:'omit', redirect:'follow' });
+  req.then(function(res){ if (!res.ok) throw new Error('The server did not answer (' + res.status + '). Tap Refresh to try again.'); return res.json(); })
+     .then(function(j){ if (j && j.error) fail(new Error(j.error)); else ok(j.result); })
+     .catch(function(e){ fail(new Error(/fetch|network|load failed/i.test(String(e && e.message)) ? 'Could not reach the server. Check your internet and tap Refresh.' : String((e && e.message) || e))); });
+}
+var CONNECTED = !!BOOT && (!!API || !!(window.google && google.script));
+var S = { data:null, open:{}, q:'', filter:'all', confirm:'' };
+var LANES = [
+  ['upcoming','Coming up (next 14 days)'], ['footage','Waiting for footage'], ['editing','With editors'], ['ready','Ready to send'], ['revision','In revision'],
+  ['hlsent','Highlight sent'], ['match','Needs a match'], ['closed','Closed (last 30 days)']
+];
+var EDS = ['Betania','Sanjay','Gilberth'];
+var SENDS = { teaser:['Teaser','Teaser sent to the couple'], hl:['Highlight','Highlight sent to the couple'], full:['Full production','Full production sent → close'] };
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function toast(msg,bad){ var t=document.getElementById('toast'); t.textContent=msg; t.className=bad?'bad':''; t.style.display='block'; clearTimeout(toast.h); toast.h=setTimeout(function(){t.style.display='none';},msg.length>60?8000:4500); }
+function todayIso(){ var p=S.data.today.split('/'); return p[2]+'-'+p[0]+'-'+p[1]; }
+function busy(on){ document.getElementById('app').classList.toggle('loading',!!on); }
+
+function load(){
+  busy(true);
+  server('ccLoad',[BOOT.k],function(d){ S.data=d; S.version=d.version; S.lastFull=Date.now(); busy(false); render(); },
+    function(e){ busy(false); document.getElementById('app').innerHTML='<div class="warn-box">'+esc(e.message||e)+'</div>'; });
+}
+function act(a,key,video,date,value){
+  busy(true);
+  server('ccAct',[BOOT.k,a,key,video||'',date||'',value===undefined?'':value],
+    function(d){ S.data=d; S.version=d.version; S.lastFull=Date.now(); S.confirm=''; busy(false); render(); toast(d.note||'Saved'); },
+    function(e){ busy(false); toast(e.message||String(e),true); });
+}
+/* two taps for anything that is hard to undo */
+function twice(id,fn){ if(S.confirm===id){ S.confirm=''; fn(); } else { S.confirm=id; render(); toast('Tap again to confirm'); } }
+
+function pill(v,showEd){
+  var txt = v.label + (showEd? ' · '+(v.editor==='ASK'?'choose editor':v.editor):'') +
+    (v.done? ' · delivered '+v.done+(showEd&&v.rev?' · revised '+v.rev+'x':'') : (v.status==='waiting'?'':' · due '+v.due));
+  return '<span class="pill s-'+esc(v.status)+'">'+esc(txt)+'</span>';
+}
+
+/* ---------------------------------------------------- pop-up for long notes */
+var M=null, MAXN=5000;
+function cardBy(key){ return S.data.cards.filter(function(x){return x.key===key;})[0]; }
+function isLong(t){ t=String(t||''); return t.length>240 || t.split('\n').length>4; }
+function noteBox(title,text,cls,opener){
+  return '<div class="notes-box '+(cls||'')+'">'+(title?'<b>'+esc(title)+'</b>':'')+'<div class="txt">'+esc(text)+'</div>'+
+    (isLong(text)?'<button class="more" onclick="'+opener+'">Read all</button>':'')+'</div>';
+}
+function viewNote(key,field,title){
+  var c=cardBy(key); if(!c) return;
+  openModal({mode:'view', title:title, sub:c.couple+' · '+c.date, text:c[field]||''});
+}
+function editNote(key,action){
+  var c=cardBy(key); if(!c) return;
+  var en=action==='enotes';
+  openModal({mode:'edit', title:en?'Notes for editors':'Internal notes', sub:c.couple+' · '+c.date+(en?' · the editors see this':' · editors never see this'),
+    text:en?c.editorNotes:c.notes, placeholder:en?'Special requests from the client: songs, moments, people to feature, things to avoid…':'Anything you want to remember about this wedding',
+    saveLabel:'Save notes', onSave:function(t){ act(action,key,'','',t); }});
+}
+function askRevision(key){
+  var c=cardBy(key); if(!c) return;
+  var sent=c.videos.filter(function(v){return v.done;});
+  openModal({mode:'edit', title:'Client asked for changes', sub:c.couple+' · '+c.date+' · goes to Rafael, the editor is not told',
+    choices:sent.map(function(v){return [v.type,v.label];}), text:'', required:true,
+    placeholder:'Write exactly what the client wants changed (times, songs, names…)',
+    saveLabel:'Send to Rafael for revision', onSave:function(t,p){ act('revision',key,p,'',t); }});
+}
+function openModal(o){
+  M=o; var m=document.getElementById('modal');
+  var h='<div class="box" role="dialog" aria-modal="true" aria-labelledby="m-title"><div class="head"><div><div class="couple" id="m-title">'+esc(o.title)+'</div>'+
+    (o.sub?'<div class="sub">'+esc(o.sub)+'</div>':'')+'</div><button class="btn ghost" onclick="closeModal()">Close</button></div>';
+  if(o.mode==='view') h+='<div class="view">'+esc(o.text)+'</div>';
+  else {
+    if(o.choices) h+='<label class="label" for="m-pick">Which video</label><select id="m-pick">'+o.choices.map(function(x){return '<option value="'+esc(x[0])+'">'+esc(x[1])+'</option>';}).join('')+'</select>';
+    h+='<label class="label" for="m-text">'+(o.choices?'What to change':'Notes')+'</label>'+
+      '<textarea id="m-text" maxlength="'+MAXN+'" placeholder="'+esc(o.placeholder||'')+'">'+esc(o.text||'')+'</textarea>'+
+      '<div class="row" style="justify-content:flex-end;margin:0"><span class="sub" id="m-count" style="margin-right:auto"></span>'+
+      '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveModal()">'+esc(o.saveLabel||'Save')+'</button></div>';
+  }
+  m.innerHTML=h+'</div>'; m.className='on'; document.body.style.overflow='hidden';
+  var t=document.getElementById('m-text');
+  if(t){ t.oninput=countModal; countModal(); t.focus(); t.setSelectionRange(t.value.length,t.value.length); }
+  else m.querySelector('button').focus();
+}
+function countModal(){ var t=document.getElementById('m-text'), n=document.getElementById('m-count'); if(t&&n) n.textContent=t.value.length+' / '+MAXN+' characters'; }
+function modalChanged(){ var t=document.getElementById('m-text'); return !!(t && t.value!==(M.text||'')); }
+function closeModal(){
+  if(!M) return;
+  M=null; var m=document.getElementById('modal'); m.className=''; m.innerHTML=''; document.body.style.overflow='';
+}
+function saveModal(){
+  var t=val('m-text'), p=val('m-pick');
+  if(M.required && !t.trim()){ toast('Write what the client wants changed first',true); return; }
+  var fn=M.onSave; closeModal(); fn(t,p);
+}
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape'||!M) return;
+  if(modalChanged()) toast('You have unsaved text — press Cancel to throw it away, or Save');
+  else closeModal();
+});
+function steps(c){
+  var s=[c.footageStatus==='upcoming'?'ok':c.footageStatus];
+  c.videos.forEach(function(v){ s.push(v.status==='waiting'?'':v.status); });
+  if(c.hasHl) s.push(c.hlSent?'done':'');
+  s.push(c.fullSent?'done':'');
+  return '<div class="steps" title="Footage → videos → sent">'+s.map(function(x){return '<span class="'+x+'"></span>';}).join('')+'</div>';
+}
+
+/* ---------------------------------------------------- Rafael & assistant */
+function renderBoard(){
+  var d=S.data, cards=d.cards;
+  function count(st){ return cards.filter(function(c){return c.stage===st;}).length; }
+  var late=cards.filter(function(c){return c.late && c.stage!=='closed';}).length;
+  var h='<header><div><h1>Editing</h1><div class="sub">'+esc(d.role)+' · today '+esc(d.today)+' · weddings from '+esc(d.trackFrom)+'</div></div>'+
+    '<div class="row" style="margin:0">'+(d.links&&d.links.Assistant?'<button class="chip" onclick="copyLink(\'Assistant\')">Copy Maga’s link</button>':'')+
+    '<button class="chip" onclick="load()">Refresh</button></div></header>';
+  (d.warnings||[]).forEach(function(w){ h+='<div class="warn-box">'+esc(w)+'</div>'; });
+  h+='<div class="tiles">'+
+    tile('lane:upcoming','Coming up',count('upcoming'))+tile('lane:footage','Waiting for footage',count('footage'))+tile('lane:editing','With editors',count('editing'))+
+    tile('lane:ready','Ready to send',count('ready'))+tile('lane:revision','In revision',count('revision'))+tile('lane:hlsent','Highlight sent',count('hlsent'))+
+    tile('late','Late',late,late>0)+'</div>';
+  h+='<div class="loads">'+EDS.map(function(e){
+    var open=[],lt=0,due=0;
+    cards.forEach(function(c){ if(!c.footage) return; c.videos.forEach(function(v){ if(v.editor===e && !v.done){ open.push(v); if(v.status==='late')lt++; else if(v.status==='due')due++; } }); });
+    var n=open.length, w=function(x){return n?(x/n*100)+'%':'0';};
+    return '<div class="load"><div style="display:flex;justify-content:space-between"><b>'+e+'</b><span class="sub">'+n+' open · '+lt+' late</span></div>'+
+      '<div class="bar"><i style="width:'+w(lt)+';background:var(--bar-late)"></i><i style="width:'+w(due)+';background:var(--bar-due)"></i><i style="width:'+w(n-lt-due)+';background:var(--taupe)"></i></div>'+
+      (d.links&&d.links[e]?'<button class="btn ghost small" onclick="copyLink(\''+e+'\')">Copy '+e+'’s link</button>':'')+'</div>';
+  }).join('')+'</div>';
+  h+='<div class="tools"><input type="search" placeholder="Search a couple" value="'+esc(S.q)+'" oninput="S.q=this.value;renderLanes()">'+
+    ['all','late'].concat(EDS).map(function(f){return '<button class="chip'+(S.filter===f?' on':'')+'" onclick="setFilter(\''+f+'\')">'+(f==='all'?'All':f==='late'?'Late':f)+'</button>';}).join('')+'</div>';
+  h+='<div class="hscroll" id="hscroll"><button class="chip arrow" onclick="slide(-1)" aria-label="Scroll left" title="Scroll left">◀</button>'+
+    '<div class="track" id="track" title="Drag to scroll the columns"><div class="thumb" id="thumb"></div></div>'+
+    '<button class="chip arrow" onclick="slide(1)" aria-label="Scroll right" title="Scroll right">▶</button></div>';
+  h+='<div class="board" id="lanes"></div>';
+  document.getElementById('app').innerHTML=h;
+  renderLanes();
+}
+/* scroll bar on top of the columns, kept in step with the board */
+function linkBars(){
+  var lanes=document.getElementById('lanes'), track=document.getElementById('track'), thumb=document.getElementById('thumb'), box=document.getElementById('hscroll');
+  if(!lanes||!track) return;
+  var max=lanes.scrollWidth-lanes.clientWidth;
+  box.classList.toggle('off', max<=2);
+  if(max<=2) return;
+  var tw=track.clientWidth, w=Math.max(40, tw*lanes.clientWidth/lanes.scrollWidth);
+  thumb.style.width=w+'px';
+  thumb.style.left=((tw-w)*lanes.scrollLeft/max)+'px';
+  if(lanes.dataset.linked) return;
+  lanes.dataset.linked='1';
+  lanes.addEventListener('scroll',linkBars);
+  var drag=null;
+  thumb.addEventListener('pointerdown',function(e){ e.preventDefault(); e.stopPropagation(); drag={x:e.clientX,s:lanes.scrollLeft}; thumb.classList.add('drag'); thumb.setPointerCapture(e.pointerId); });
+  thumb.addEventListener('pointermove',function(e){
+    if(!drag) return; var m=lanes.scrollWidth-lanes.clientWidth, room=track.clientWidth-thumb.offsetWidth;
+    if(room>0) lanes.scrollLeft=drag.s+(e.clientX-drag.x)*m/room;
+  });
+  var end=function(){ drag=null; thumb.classList.remove('drag'); };
+  thumb.addEventListener('pointerup',end); thumb.addEventListener('pointercancel',end);
+  track.addEventListener('pointerdown',function(e){   // click on the empty part of the bar: jump there
+    if(e.target!==track) return;
+    var r=track.getBoundingClientRect(), m=lanes.scrollWidth-lanes.clientWidth, w2=thumb.offsetWidth;
+    var pos=Math.min(1,Math.max(0,(e.clientX-r.left-w2/2)/(r.width-w2)));
+    lanes.scrollTo({left:pos*m,behavior:'smooth'});
+  });
+}
+function slide(dir){
+  var lanes=document.getElementById('lanes'); if(!lanes) return;
+  var lane=lanes.querySelector('.lane'), step=lane?lane.getBoundingClientRect().width+12:300;
+  lanes.scrollBy({left:dir*step,behavior:'smooth'});
+}
+window.addEventListener('resize',function(){ linkBars(); });
+function copyLink(n){
+  var url=S.data.links[n], who=n==='Assistant'?'Maga':n, ok=false, msg=who+'’s link copied — paste it in WhatsApp, a text or an email';
+  try{ var t=document.createElement('textarea'); t.value=url; t.setAttribute('readonly',''); t.style.position='fixed'; t.style.top='0'; t.style.opacity='0';
+       document.body.appendChild(t); t.select(); ok=document.execCommand('copy'); document.body.removeChild(t); }catch(e){ ok=false; }
+  if(ok) return toast(msg);
+  var show=function(){ openModal({mode:'view', title:who+'’s private link', sub:'Your browser blocked copying — select the link below and copy it', text:url}); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function(){ toast(msg); },show); else show();
+}
+function tile(f,label,n,bad){ return '<button class="tile'+(S.filter===f?' on':'')+(bad?' bad':'')+'" onclick="setFilter(\''+f+'\')"><div class="label">'+label+'</div><div class="n">'+n+'</div></button>'; }
+function setFilter(f){ S.filter=(S.filter===f?'all':f); render(); }
+function renderLanes(){
+  var d=S.data, q=S.q.trim().toLowerCase();
+  var shown=d.cards.filter(function(c){
+    if(q && c.couple.toLowerCase().indexOf(q)<0) return false;
+    if(S.filter==='late') return c.late;
+    if(EDS.indexOf(S.filter)>=0) return c.videos.some(function(v){return v.editor===S.filter && !v.done && c.footage;});
+    if(S.filter.indexOf('lane:')===0) return c.stage===S.filter.slice(5);
+    return true;
+  });
+  var h='';
+  LANES.forEach(function(l){
+    var list=shown.filter(function(c){return c.stage===l[0];});
+    if(!list.length && (l[0]==='match'||l[0]==='closed')) return;
+    h+='<section class="lane"><h2><span>'+l[1]+'</span><span>'+list.length+'</span></h2>'+
+      (list.length?list.map(cardHtml).join(''):'<div class="empty">Nothing here</div>')+'</section>';
+  });
+  document.getElementById('lanes').innerHTML=h;
+  linkBars();
+}
+function cardHtml(c){
+  var id=c.key, open=!!S.open[id];
+  var h='<div class="card'+(c.late?' late':'')+'" onclick="toggle(event,\''+encodeURIComponent(id).replace(/'/g,'%27')+'\')">'+
+    '<div class="couple">'+esc(c.couple)+'</div>'+
+    '<div class="meta">'+esc(c.date)+(c.pkg?' · '+esc(c.pkg):'')+(c.lead?' · Lead '+esc(c.lead):'')+(c.city?' · '+esc(c.city):'')+'</div>'+
+    steps(c)+'<div class="pills">';
+  if(c.stage==='footage') h+='<span class="pill s-'+(c.footageStatus==='late'?'late':'waiting')+'">Footage '+(c.footageStatus==='late'?'late · ':'')+'due '+esc(c.footageDue)+'</span>';
+  if(c.inRevision) h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+'</span>';
+  if(c.stage==='upcoming') h+='<span class="pill s-upcoming">Wedding in '+(-c.daysSince)+(c.daysSince===-1?' day':' days')+'</span>';
+  if(c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return SENDS[r][0];}).join(' + ')+'</span>';
+  if(c.teaserSent) h+='<span class="pill s-done">Teaser sent '+esc(c.teaserSent)+'</span>';
+  c.videos.forEach(function(v){ h+=pill(v,true); });
+  if(c.editorNotes) h+='<span class="pill s-due">Special requests</span>';
+  if(c.hlSent) h+='<span class="pill s-done">HL sent '+esc(c.hlSent)+'</span>';
+  if(c.fullSent) h+='<span class="pill s-done">Full sent '+esc(c.fullSent)+'</span>';
+  h+='</div>';
+  if(open) h+='<div class="detail" onclick="event.stopPropagation()">'+detailHtml(c)+'</div>';
+  return h+'</div>';
+}
+function toggle(ev,id){ id=decodeURIComponent(id); S.open[id]=!S.open[id]; renderLanes(); }
+
+function dateInput(id){ return '<input type="date" id="'+id+'" max="'+todayIso()+'" value="'+todayIso()+'">'; }
+function val(id){ var e=document.getElementById(id); return e?e.value:''; }
+function kid(c,s){ return 'x'+btoa(unescape(encodeURIComponent(c.key))).replace(/[^a-z0-9]/gi,'')+s; }
+
+function detailHtml(c){
+  var d=S.data, admin=d.isAdmin, h='', K=esc(JSON.stringify(c.key));
+  if(c.stage==='match'){
+    return '<div class="sub">This wedding was saved here, but the master no longer has a wedding with this exact date and couple name (renamed, moved or cancelled). Nothing was lost. Check the master; if the names changed, tell Claude and the record will be re-linked.</div>';
+  }
+  if(c.stage==='upcoming'){
+    return '<div class="sub">The wedding is on '+esc(c.date)+'. Add the special requests now; the editors see them as soon as the footage is in.</div>'+notesEditor(c,K);
+  }
+  if(c.stage==='footage'){
+    if(!admin) return '<div class="sub">Waiting for Rafael to confirm the footage is in the NAS.</div>'+notesEditor(c,K);
+    h+='<div class="label">Footage is in the NAS</div>';
+    c.videos.forEach(function(v){
+      h+='<div class="row"><span class="name">'+v.label+'</span><select id="'+kid(c,'e'+v.type)+'">'+
+        (v.editor==='ASK'?'<option value="">Choose editor…</option>':'')+
+        EDS.concat(['none']).map(function(e){return '<option value="'+e+'"'+(v.editor===e?' selected':'')+'>'+(e==='none'?'No '+v.label:e)+'</option>';}).join('')+'</select>'+
+        '<label class="chk"><input type="checkbox" id="'+kid(c,'a'+v.type)+'"> already delivered on</label>'+dateInput(kid(c,'ad'+v.type))+'</div>';
+    });
+    if(!c.videos.length) h+='<div class="sub">Package "'+esc(c.pkg)+'" has no rule yet. Add it in Settings → Editing rules.</div>';
+    h+=notesEditor(c,K);
+    h+='<div class="row"><label class="chk"><input type="checkbox" id="'+kid(c,'nt')+'"'+(c.daysSince<=7?' checked':'')+'> Tell the editors (Sanjay gets an email; WhatsApp / text buttons appear)</label></div>';
+    if(c.daysSince>7) h+='<div class="sub">This wedding was more than a week ago, so by default nobody is messaged. Tick the box if you do want to tell them.</div>';
+    h+='<div class="row"><span class="name">Footage date</span>'+dateInput(kid(c,'fd'))+'<button class="btn" onclick="markFootage('+K+')">Footage in NAS → assign editors</button></div>';
+    return h;
+  }
+  // editing and later
+  if(c.inRevision){
+    h+='<div class="label">Revision — Rafael is doing the changes</div>'+
+      noteBox(c.revLabel+' · client asked '+c.revAsked+' · due '+c.revDue, c.revNotes||'(no details written)', 'rev-box', 'viewNote('+K+',\'revNotes\',\'Client changes: '+esc(c.revLabel)+'\')');
+    if(admin) h+='<div class="row"><span class="name">Finished on</span>'+dateInput(kid(c,'rd'))+
+      '<button class="btn" onclick="act(\'revdone\','+K+',\'\',val(\''+kid(c,'rd')+'\'))">Revision done → ready to send</button></div>';
+    else h+='<div class="sub">When Rafael marks the revision done, this wedding comes back to “Ready to send”.</div>';
+    h+='<div class="label" style="margin-top:12px">Videos</div>';
+  }
+  c.videos.forEach(function(v){
+    h+='<div class="row"><span class="name">'+v.label+'</span>'+pill(v,true);
+    if(admin && !v.done){
+      h+='<select onchange="act(\'editor\','+K+',\''+v.type+'\',\'\',this.value)">'+EDS.concat(['none']).map(function(e){return '<option value="'+e+'"'+(v.editor===e?' selected':'')+'>'+(e==='none'?'No '+v.label:e)+'</option>';}).join('')+'</select>';
+      h+=dateInput(kid(c,'d'+v.type))+'<button class="btn ghost" onclick="act(\'done\','+K+',\''+v.type+'\',val(\''+kid(c,'d'+v.type)+'\'))">Mark delivered</button>';
+    }
+    if(admin && v.done){ var cid=c.key+'|u'+v.type; h+='<button class="btn ghost" onclick="twice(\''+esc(cid).replace(/'/g,'')+'\',function(){act(\'undone\','+K+',\''+v.type+'\')})">'+(S.confirm===cid.replace(/'/g,'')?'Tap again: undo':'Undo delivered')+'</button>'; }
+    h+='</div>';
+  });
+  h+=notesEditor(c,K);
+  if(admin||d.canSend){
+    var m=(d.messages||{})[c.key]||{};
+    var ct=d.contacts||{};
+    var nb=c.videos.some(function(v){return v.editor==='Betania'&&!v.done;}), ng=c.videos.some(function(v){return v.editor==='Gilberth'&&!v.done;});
+    var ns=c.videos.some(function(v){return v.editor==='Sanjay';});
+    if(nb||ng||ns){
+      h+='<div class="label" style="margin-top:12px">Tell the editors</div><div class="row">';
+      if(nb && m.Betania) h+='<a class="btn ghost" target="_blank" href="https://wa.me/'+esc(ct.betania)+'?text='+encodeURIComponent(m.Betania)+'" onclick="act(\'notified\','+K+',\'\',\'\',\'Betania\')">WhatsApp Betania'+notedLabel(c.notified.Betania)+'</a>';
+      if(ng && m.Gilberth && ct.gilberth) h+='<a class="btn ghost" href="sms:+1'+esc(ct.gilberth)+'?&body='+encodeURIComponent(m.Gilberth)+'" onclick="act(\'notified\','+K+',\'\',\'\',\'Gilberth\')">Text Gilberth'+notedLabel(c.notified.Gilberth)+'</a>';
+      if(ng && !ct.gilberth) h+='<span class="sub">No mobile for Gilbert in the Crew roster.</span>';
+      if(ns) h+='<span class="sub">Sanjay: '+(c.notified.Sanjay==='skipped'?'not emailed (catch-up)':c.notified.Sanjay?'emailed '+esc(c.notified.Sanjay):'not emailed')+'</span>';
+      h+='</div>';
+    }
+  }
+  if(d.canSend){
+    h+='<div class="label" style="margin-top:12px">Send to the couple (MediaZilla)</div><div class="row">';
+    (c.readyAll||[]).forEach(function(r){
+      h+='</div><div class="row">'+dateInput(kid(c,'s'+r))+'<button class="btn" onclick="act(\''+r+'sent\','+K+',\'\',val(\''+kid(c,'s'+r)+'\'))">'+SENDS[r][1]+'</button>';
+    });
+    if(!(c.readyAll||[]).length) h+='<span class="sub">'+(c.inRevision?'Waiting for Rafael to finish the revision.':c.fullSent?'Everything was sent '+esc(c.fullSent)+'.':'Nothing ready to send yet — waiting for the editors.')+'</span>';
+    h+='</div>';
+    if(!c.inRevision && c.videos.some(function(v){return v.done;})){
+      h+='<div class="row"><button class="btn ghost" onclick="askRevision('+K+')">Client asked for changes…</button>'+
+        (c.revDone?'<span class="sub">Last revision finished '+esc(c.revDone)+'</span>':'')+'</div>';
+    }
+  }
+  if(admin){
+    h+='<div class="row" style="margin-top:12px">';
+    if(c.teaserSent) h+='<button class="btn ghost" onclick="act(\'unteasersent\','+K+')">Undo teaser sent</button>';
+    if(c.hlSent) h+='<button class="btn ghost" onclick="act(\'unhlsent\','+K+')">Undo highlight sent</button>';
+    if(c.fullSent) h+='<button class="btn ghost" onclick="act(\'unfullsent\','+K+')">Reopen</button>';
+    if(!c.videos.some(function(v){return v.done;})){ var uid=(c.key+'|uf').replace(/'/g,''); h+='<button class="btn ghost" onclick="twice(\''+esc(uid)+'\',function(){act(\'unfootage\','+K+')})">'+(S.confirm===uid?'Tap again: undo footage':'Undo footage')+'</button>'; }
+    h+='</div>';
+  }
+  if(admin){
+    h+='<div class="label" style="margin-top:12px">Internal notes (only you see these)</div>'+
+      (c.notes?noteBox('',c.notes,'','viewNote('+K+',\'notes\',\'Internal notes\')'):'')+
+      '<div class="row"><button class="btn ghost" onclick="editNote('+K+',\'notes\')">'+(c.notes?'Open / edit notes':'Add a note')+'</button></div>';
+  }
+  return h;
+}
+function markFootage(key){
+  var c=S.data.cards.filter(function(x){return x.key===key;})[0], pick={done:{}};
+  for(var i=0;i<c.videos.length;i++){
+    var v=c.videos[i], s=val(kid(c,'e'+v.type)); if(!s){ toast('Choose an editor for the '+v.label,true); return; }
+    pick[v.type]=s;
+    var a=document.getElementById(kid(c,'a'+v.type)); if(a&&a.checked) pick.done[v.type]=val(kid(c,'ad'+v.type));
+  }
+  var n=document.getElementById(kid(c,'nt')); pick.notify=!!(n&&n.checked);
+  act('footage',key,'',val(kid(c,'fd')),pick);
+}
+function notesEditor(c,K){
+  return '<div class="label" style="margin-top:12px">Notes for editors (they see this)</div>'+
+    (c.editorNotes?noteBox('',c.editorNotes,'','viewNote('+K+',\'editorNotes\',\'Special requests\')'):'<div class="sub">No special requests yet.</div>')+
+    '<div class="row"><button class="btn ghost" onclick="editNote('+K+',\'enotes\')">'+(c.editorNotes?'Open / edit notes':'Add notes for editors')+'</button></div>';
+}
+function notedLabel(x){ return x==='skipped'?' (catch-up, not sent)':x?' ✓ '+esc(x):''; }
+
+/* ---------------------------------------------------- editors */
+function renderEditor(){
+  var d=S.data, cards=d.cards.slice();
+  var all=[]; cards.forEach(function(c){ c.videos.forEach(function(v){ all.push({c:c,v:v}); }); });
+  var todo=all.filter(function(x){return !x.v.done;}), late=todo.filter(function(x){return x.v.status==='late';}), done=all.filter(function(x){return x.v.done;});
+  todo.sort(function(a,b){ return dueKey(a.v)<dueKey(b.v)?-1:1; });
+  var h='<header><div><h1>Hi '+esc(d.role)+'</h1><div class="sub">Your EP Films weddings · today '+esc(d.today)+'</div></div><button class="chip" onclick="load()">Refresh</button></header>'+
+    '<div class="tiles"><div class="tile"><div class="label">To deliver</div><div class="n">'+todo.length+'</div></div>'+
+    '<div class="tile'+(late.length?' bad':'')+'"><div class="label">Late</div><div class="n">'+late.length+'</div></div>'+
+    '<div class="tile"><div class="label">Delivered (14 days)</div><div class="n">'+done.length+'</div></div></div>';
+  h+='<div class="ed-list">';
+  if(!todo.length) h+='<div class="empty">Nothing waiting for you right now.</div>';
+  todo.forEach(function(x){
+    var cid=(x.c.key+'|'+x.v.type).replace(/'/g,'');
+    h+='<div class="card'+(x.v.status==='late'?' late':'')+'"><div class="couple">'+esc(x.c.couple)+'</div>'+
+      '<div class="meta">Wedding '+esc(x.c.date)+'</div><div class="row">'+pill(x.v,false)+'</div>'+
+      (x.c.editorNotes?noteBox('Special requests',x.c.editorNotes,'','viewNote('+esc(JSON.stringify(x.c.key))+',\'editorNotes\',\'Special requests\')'):'')+
+      '<button class="btn big" onclick="twice(\''+esc(cid)+'\',function(){act(\'done\','+esc(JSON.stringify(x.c.key))+',\''+x.v.type+'\')})">'+
+      (S.confirm===cid?'Tap again to confirm: '+x.v.label+' is in my NAS folder':'Mark '+x.v.label+' delivered')+'</button></div>';
+  });
+  if(done.length){
+    h+='<div class="label" style="margin:18px 0 8px">Recently delivered</div>';
+    done.forEach(function(x){ h+='<div class="card"><div class="couple" style="font-size:16px">'+esc(x.c.couple)+'</div><div class="row">'+pill(x.v,false)+'</div></div>'; });
+  }
+  document.getElementById('app').innerHTML=h+'</div>';
+}
+function dueKey(v){ var p=v.due.split('/'); return p[2]+p[0]+p[1]; }
+
+/* ---------------------------------------------------- live updates
+   Every 20 s the page asks "did anything change?". If yes, it reloads quietly and says what moved.
+   Every 5 min it reloads anyway, so new weddings from the master appear. Never while you are typing. */
+var POLL_MS=20000, FULL_MS=300000, polling=false;
+function userBusy(){
+  var a=document.activeElement, t=a&&a.tagName;
+  return M || S.confirm || t==='INPUT' || t==='TEXTAREA' || t==='SELECT' || document.getElementById('app').classList.contains('loading');
+}
+function changes(oldD,newD){
+  var before={}, out=[], fresh=0;
+  (oldD.cards||[]).forEach(function(c){ before[c.key]=c; });
+  (newD.cards||[]).forEach(function(c){
+    var o=before[c.key];
+    if(!o){ fresh++; return; }
+    if(!o.footage && c.footage) out.push('Footage in NAS for '+c.couple);
+    if(c.inRevision && !o.inRevision) out.push(c.couple+': client asked for changes ('+c.revLabel+')');
+    if(!c.inRevision && o.inRevision) out.push('Revision done for '+c.couple+' — ready to send');
+    (c.videos||[]).forEach(function(v){
+      var ov=(o.videos||[]).filter(function(x){return x.type===v.type;})[0];
+      if(v.done && !(ov&&ov.done)) out.push(v.editor+' delivered the '+v.label+' for '+c.couple);
+      else if(ov && ov.editor!==v.editor) out.push(v.label+' for '+c.couple+' moved to '+v.editor);
+    });
+    if(c.teaserSent && !o.teaserSent) out.push('Teaser sent for '+c.couple);
+    if(c.hlSent && !o.hlSent) out.push('Highlight sent for '+c.couple);
+    if(c.fullSent && !o.fullSent) out.push(c.couple+' closed');
+  });
+  if(fresh) out.push(fresh+(fresh===1?' new wedding':' new weddings')+' on the board');
+  if(!out.length) return '';
+  return 'Updated: '+out.slice(0,3).join(' · ')+(out.length>3?' · and '+(out.length-3)+' more':'');
+}
+function quietLoad(){
+  if(userBusy()||polling) return;
+  polling=true;
+  server('ccLoad',[BOOT.k],function(d){
+    polling=false;
+    if(userBusy()) return;                       // you started typing meanwhile: try again next round
+    var msg=changes(S.data,d), lanes=document.getElementById('lanes'), x=lanes?lanes.scrollLeft:0, y=window.scrollY;
+    S.data=d; S.version=d.version; S.lastFull=Date.now(); render();
+    lanes=document.getElementById('lanes'); if(lanes) lanes.scrollLeft=x; window.scrollTo(0,y);
+    if(msg) toast(msg);
+  },function(){ polling=false; });
+}
+function poll(){
+  if(!S.data || document.hidden || userBusy() || polling) return;
+  if(Date.now()-(S.lastFull||0) > FULL_MS) return quietLoad();
+  server('ccVersion',[BOOT.k],function(v){ if(v!==S.version) quietLoad(); },function(){});
+}
+if (CONNECTED) {
+  setInterval(poll, POLL_MS);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
+}
+
+function render(){ if(!S.data) return; if(S.data.role==='Rafael'||S.data.role==='Assistant') renderBoard(); else renderEditor(); }
+if (CONNECTED) load();
+else document.getElementById('app').innerHTML='<div class="warn-box">This page needs your private link. Ask Rafael for it.</div>';
+</script>
+</body>
+</html>
