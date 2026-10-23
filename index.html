@@ -596,7 +596,7 @@ function renderBLanes(){
   BLANES.forEach(function(l){
     if(S.bfilter!=='all' && S.bfilter!==l[0]) return;
     var list=shown.filter(function(x){ return inLane(x,l[0],m); });
-    var sub=l[0]==='sent'?'Sent in '+monthName(m)+', plus every contract still open ('+life+' days)':l[0]==='signed'?'Signed in '+monthName(m)+', plus anyone still without a deposit':l[0]==='follow'?'No call or contract 3+ days after the inquiry, or the contract expired':'';
+    var sub=l[0]==='new'?'The website form, or a call booked without the form':l[0]==='sent'?'Sent in '+monthName(m)+', plus every contract still open ('+life+' days)':l[0]==='signed'?'Signed in '+monthName(m)+', plus anyone still without a deposit':l[0]==='follow'?'No call or contract 3+ days after the inquiry, or the contract expired':'';
     h+='<section class="lane"><h2><span>'+esc(l[1])+'</span><span>'+list.length+'</span></h2>'+(sub?'<div class="lsub">'+esc(sub)+'</div>':'')+
       (list.length?list.map(function(x){ return brideHtml(x,l[0]); }).join(''):'<div class="empty">Nothing here</div>')+'</section>';
   });
