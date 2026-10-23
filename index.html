@@ -178,16 +178,12 @@ try { S.view = location.hash==='#brides' ? 'brides' : (localStorage.getItem('ep_
 /* 4 columns, left to right the way a wedding moves. "Your turn" = Rafael: pick up delivered videos and upload them to
    MediaZilla, and do revisions. Maga sends only what is already on MediaZilla. Closed weddings fold away under the board. */
 var LANES = [['start','Coming up & footage'], ['editors','With editors'], ['mine','Your turn'], ['maga','Maga sends']];
-function laneOf(c){
-  if(c.stage==='upcoming'||c.stage==='footage'||c.stage==='assign') return 'start';
-  if(c.stage==='revision'||c.stage==='pickup') return 'mine';
-  if(c.stage==='ready') return 'maga';
-  if(c.stage==='editing'||c.stage==='hlsent') return 'editors';
-  return 'done';
-}
+/* each video sits in its own column, so one wedding can show in two or three columns at once */
+function lanesOf(c){ return c.lanes||['start']; }
+function onLane(c,l){ return lanesOf(c).indexOf(l)>=0; }
 function laneName(l){ var a=S.data&&S.data.role==='Assistant'; return l==='mine'?(a?'With Rafael':'Your turn'):l==='maga'?(a?'Ready to send':'Maga sends'):LANES.filter(function(x){return x[0]===l;})[0][1]; }
 var EDS = ['Betania','Sanjay','Gilberth'];
-var SENDS = { teaser:['Teaser','Teaser sent to the couple'], hl:['Highlight','Highlight sent to the couple'], full:['Full production','Full production sent → close'] };
+var SENDS = { teaser:['Teaser','Teaser sent to the couple'], hl:['Highlight','Highlight sent to the couple'], doc:['Documentary','Documentary sent to the couple'] };
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function toast(msg,bad){ var t=document.getElementById('toast'); t.textContent=msg; t.className=bad?'bad':''; t.style.display='block'; clearTimeout(toast.h); toast.h=setTimeout(function(){t.style.display='none';},msg.length>60?8000:4500); }
@@ -236,6 +232,7 @@ function act(a,key,video,date,value){
 function twice(id,fn){ if(S.confirm===id){ S.confirm=''; fn(); } else { S.confirm=id; render(); toast('Tap again to confirm'); } }
 
 function pill(v,showEd){
+  if(showEd && v.sent) return '<span class="pill s-done">'+esc(v.label+' · sent to the couple '+v.sent)+'</span>';
   var txt = v.label + (showEd? ' · '+(v.editor==='ASK'?'choose editor':v.editor):'') +
     (v.done? ' · delivered '+v.done+(showEd&&v.rev?' · revised '+v.rev+'x':'')+(showEd&&v.pickup?' · pick up':'') : (v.status==='waiting'?'':(showEd&&v.given===''?' · not handed over yet':'')+' · due '+v.due));
   return '<span class="pill s-'+esc(showEd&&v.pickup?'due':v.status)+'">'+esc(txt)+'</span>';
@@ -307,8 +304,8 @@ document.addEventListener('keydown',function(e){
 function steps(c){
   var s=[c.footageStatus==='upcoming'?'ok':c.footageStatus];
   c.videos.forEach(function(v){ s.push(v.status==='waiting'?'':v.status); });
-  if(c.hasHl) s.push(c.hlSent?'done':'');
-  s.push(c.fullSent?'done':'');
+  c.videos.forEach(function(v){ s.push(v.sent?'done':''); });
+  s.push(c.closed?'done':'');
   return '<div class="steps" title="Footage → videos → sent">'+s.map(function(x){return '<span class="'+x+'"></span>';}).join('')+'</div>';
 }
 
@@ -317,11 +314,11 @@ function renderBoard(){
   var d=S.data, cards=d.cards;
   function count(st){ return cards.filter(function(c){return c.stage===st;}).length; }
   var late=cards.filter(function(c){return c.late && c.stage!=='closed';}).length;
-  var h='<header><div><h1>Editing <span class="ver">v1.1</span></h1><div class="sub">'+esc(d.role)+' · today '+esc(d.today)+' · weddings from '+esc(d.trackFrom)+'</div></div>'+
+  var h='<header><div><h1>Editing <span class="ver">v1.2</span></h1><div class="sub">'+esc(d.role)+' · today '+esc(d.today)+' · weddings from '+esc(d.trackFrom)+'</div></div>'+
     '<div class="row" style="margin:0">'+viewSwitch()+(d.links&&d.links.Assistant?'<button class="chip" onclick="copyLink(\'Assistant\')">Copy Maga’s link</button>':'')+
     '<button class="chip" onclick="load()">Refresh</button></div></header>';
   (d.warnings||[]).forEach(function(w){ h+='<div class="warn-box">'+esc(w)+'</div>'; });
-  function lc(l){ return cards.filter(function(c){return laneOf(c)===l;}).length; }
+  function lc(l){ return cards.filter(function(c){return onLane(c,l);}).length; }
   var mineN=lc('mine');
   h+='<div class="tiles">'+
     tile('st:upcoming','Coming up',count('upcoming'))+tile('st:footage','Footage & hand-over',count('footage')+count('assign'))+tile('lane:editors','With editors',lc('editors'))+
@@ -391,7 +388,7 @@ function renderLanes(){
     if(q && c.couple.toLowerCase().indexOf(q)<0) return false;
     if(S.filter==='late') return c.late;
     if(EDS.indexOf(S.filter)>=0) return c.videos.some(function(v){return v.editor===S.filter && !v.done && c.footage;});
-    if(S.filter.indexOf('lane:')===0) return laneOf(c)===S.filter.slice(5);
+    if(S.filter.indexOf('lane:')===0) return onLane(c,S.filter.slice(5));
     if(S.filter==='st:footage') return c.stage==='footage'||c.stage==='assign';
     if(S.filter.indexOf('st:')===0) return c.stage===S.filter.slice(3);
     return true;
@@ -400,37 +397,42 @@ function renderLanes(){
     mine:S.data.isAdmin?'Pick up from the NAS → upload to MediaZilla, and revisions':'Rafael is uploading to MediaZilla or doing a revision', maga:'On MediaZilla, ready to send to the couple' };
   var h='';
   LANES.forEach(function(l){
-    var list=shown.filter(function(c){return laneOf(c)===l[0];});
+    var list=shown.filter(function(c){return onLane(c,l[0]);});
     h+='<section class="lane '+l[0]+'"><h2><span>'+esc(laneName(l[0]))+'</span><span>'+list.length+'</span></h2><div class="lsub">'+esc(subs[l[0]])+'</div>'+
-      (list.length?list.map(cardHtml).join(''):'<div class="empty">Nothing here</div>')+'</section>';
+      (list.length?list.map(function(c){return cardHtml(c,l[0]);}).join(''):'<div class="empty">Nothing here</div>')+'</section>';
   });
   document.getElementById('lanes').innerHTML=h;
-  var done=shown.filter(function(c){return laneOf(c)==='done';}), fold=document.getElementById('donefold');
+  var done=shown.filter(function(c){return onLane(c,'done');}), fold=document.getElementById('donefold');
   if(fold){
     var nm=done.filter(function(c){return c.stage==='match';}).length;
-    fold.innerHTML=done.length?'<details class="donefold"'+(S.foldOpen?' open':'')+' ontoggle="S.foldOpen=this.open"><summary>Done · sent to the couple in the last 30 days ('+(done.length-nm)+')'+
-      (nm?' · '+nm+' need a match':'')+'</summary><div class="grid">'+done.map(cardHtml).join('')+'</div></details>':'';
+    fold.innerHTML=done.length?'<details class="donefold"'+(S.foldOpen?' open':'')+' ontoggle="S.foldOpen=this.open"><summary>Done · closed in the last 30 days ('+(done.length-nm)+')'+
+      (nm?' · '+nm+' need a match':'')+'</summary><div class="sub" style="margin:6px 0">Closed by hand. Open one and press Reopen (or “Client asked for changes…”) to bring it back.</div><div class="grid">'+done.map(function(c){return cardHtml(c,'done');}).join('')+'</div></details>':'';
   }
 }
-function cardHtml(c){
-  var id=c.key, open=!!S.open[id];
-  var h='<div class="card'+(c.late?' late':'')+'" onclick="toggle(event,\''+encodeURIComponent(id).replace(/'/g,'%27')+'\')">'+
+function cardHtml(c,lane){
+  var id=c.key, oid=id+'|'+(lane||''), open=!!S.open[oid], all=!lane||lane==='done';
+  var h='<div class="card'+(c.late?' late':'')+'" onclick="toggle(event,\''+encodeURIComponent(oid).replace(/'/g,'%27')+'\')">'+
     '<div class="couple">'+esc(c.couple)+'</div>'+
     '<div class="meta">'+esc(c.date)+(c.pkg?' · '+esc(c.pkg):'')+(c.lead?' · Lead '+esc(c.lead):'')+(c.city?' · '+esc(c.city):'')+'</div>'+
     steps(c)+'<div class="pills">';
+  var here=function(l){ return all||lane===l; };
   if(c.stage==='footage') h+='<span class="pill s-'+(c.footageStatus==='late'?'late':'waiting')+'">Footage '+(c.footageStatus==='late'?'late · ':'')+'due '+esc(c.footageDue)+'</span>';
   if(c.stage==='footage' && nasOf(c).footage.length) h+='<span class="pill s-ready">Footage found in NAS</span>';
-  if(c.stage==='assign') h+='<span class="pill s-due">Hand over: '+c.videos.filter(function(v){return !v.done&&!v.given;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
-  if(c.inRevision){ var ri=revItems(c), rd=(c.revChecked||[]).length; h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+(ri.length?' · '+rd+'/'+ri.length+' done':'')+'</span>'; }
-  if((c.pickup||[]).length) h+='<span class="pill s-due">'+(S.data.isAdmin?'Pick up':'Rafael uploading')+': '+c.videos.filter(function(v){return v.pickup;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
+  if(here('start') && (c.waiting||[]).length) h+='<span class="pill s-due">Hand over: '+c.videos.filter(function(v){return !v.done&&!v.given;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
+  if(here('mine') && c.inRevision){ var ri=revItems(c), rd=(c.revChecked||[]).length; h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+(ri.length?' · '+rd+'/'+ri.length+' done':'')+'</span>'; }
+  if(here('mine') && (c.pickup||[]).length) h+='<span class="pill s-due">'+(S.data.isAdmin?'Pick up':'Rafael uploading')+': '+c.videos.filter(function(v){return v.pickup;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
   if(c.stage==='upcoming') h+='<span class="pill s-upcoming">Wedding in '+(-c.daysSince)+(c.daysSince===-1?' day':' days')+'</span>';
-  if(c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return SENDS[r][0];}).join(' + ')+'</span>';
-  if(c.teaserSent) h+='<span class="pill s-done">Teaser sent '+esc(c.teaserSent)+'</span>';
-  c.videos.forEach(function(v){ h+=pill(v,true); });
-  if(c.editorNotes) h+='<span class="pill s-due">Special requests</span>';
-  if(c.chapters) h+='<span class="pill s-ok">Chapters in</span>';
-  if(c.hlSent) h+='<span class="pill s-done">HL sent '+esc(c.hlSent)+'</span>';
-  if(c.fullSent) h+='<span class="pill s-done">Full sent '+esc(c.fullSent)+'</span>';
+  if(here('maga') && c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return SENDS[r][0];}).join(' + ')+'</span>';
+  if(here('maga') && c.allSent && !c.closed) h+='<span class="pill s-ready">Everything sent · close when ready</span>';
+  if(c.closed) h+='<span class="pill s-done">Closed '+esc(c.closed)+'</span>';
+  // only the videos that are at this step (the Maga column also shows what was already sent)
+  c.videos.forEach(function(v){
+    if(all || c.stage==='upcoming' || c.stage==='footage' || v.step===lane || (lane==='maga' && v.step==='sent')) h+=pill(v,true);
+  });
+  if(here('editors') || here('start')){
+    if(c.editorNotes) h+='<span class="pill s-due">Special requests</span>';
+    if(c.chapters) h+='<span class="pill s-ok">Chapters in</span>';
+  }
   h+='</div>';
   if(open) h+='<div class="detail" onclick="event.stopPropagation()">'+detailHtml(c)+'</div>';
   return h+'</div>';
@@ -525,8 +527,15 @@ function detailHtml(c){
     (c.readyAll||[]).forEach(function(r){
       h+='</div><div class="row">'+dateInput(kid(c,'s'+r))+'<button class="btn" onclick="act(\''+r+'sent\','+K+',\'\',val(\''+kid(c,'s'+r)+'\'))">'+SENDS[r][1]+'</button>';
     });
-    if(!(c.readyAll||[]).length) h+='<span class="sub">'+(c.inRevision?'Waiting for Rafael to finish the revision.':c.fullSent?'Everything was sent '+esc(c.fullSent)+'.':'Nothing ready to send yet — waiting for the editors.')+'</span>';
+    if(!(c.readyAll||[]).length) h+='<span class="sub">'+(c.closed?'Closed '+esc(c.closed)+'.':c.allSent?'Every video was sent to the couple.':c.inRevision?'Waiting for Rafael to finish the revision.':'Nothing ready to send yet — waiting for the editors.')+'</span>';
     h+='</div>';
+    var sentList=c.videos.filter(function(v){return v.sent;});
+    if(sentList.length) h+='<div class="sub">Sent: '+sentList.map(function(v){return esc(v.label)+' '+esc(v.sent);}).join(' · ')+'</div>';
+    if(c.allSent && !c.closed){
+      h+='<div class="row"><span class="name">Closed on</span>'+dateInput(kid(c,'cl'))+'<button class="btn" onclick="act(\'close\','+K+',\'\',val(\''+kid(c,'cl')+'\'))">Close wedding</button></div>'+
+        '<div class="sub">Nothing closes by itself. Close it when you are sure nothing else is needed — you can bring it back later.</div>';
+    }
+    if(c.closed) h+='<div class="row"><button class="btn ghost" onclick="act(\'reopen\','+K+')">Reopen — bring it back to the board</button></div>';
     if(!c.inRevision && c.videos.some(function(v){return v.done;})){
       h+='<div class="row"><button class="btn ghost" onclick="askRevision('+K+')">Client asked for changes…</button>'+
         (c.revDone?'<span class="sub">Last revision finished '+esc(c.revDone)+'</span>':'')+'</div>';
@@ -534,9 +543,7 @@ function detailHtml(c){
   }
   if(admin){
     h+='<div class="row" style="margin-top:12px">';
-    if(c.teaserSent) h+='<button class="btn ghost" onclick="act(\'unteasersent\','+K+')">Undo teaser sent</button>';
-    if(c.hlSent) h+='<button class="btn ghost" onclick="act(\'unhlsent\','+K+')">Undo highlight sent</button>';
-    if(c.fullSent) h+='<button class="btn ghost" onclick="act(\'unfullsent\','+K+')">Reopen</button>';
+    c.videos.forEach(function(v){ if(v.sent) h+='<button class="btn ghost" onclick="act(\'un'+v.type+'sent\','+K+')">Undo '+esc(v.label.toLowerCase())+' sent</button>'; });
     if(!c.videos.some(function(v){return v.done;})){ var uid=(c.key+'|uf').replace(/'/g,''); h+='<button class="btn ghost" onclick="twice(\''+esc(uid)+'\',function(){act(\'unfootage\','+K+')})">'+(S.confirm===uid?'Tap again: undo footage':'Undo footage')+'</button>'; }
     h+='</div>';
   }
@@ -785,9 +792,9 @@ function changes(oldD,newD){
       else if(v.done && v.up && ov && ov.done && !ov.up) out.push(v.label+' for '+c.couple+' is on MediaZilla — ready to send');
       else if(ov && ov.editor!==v.editor) out.push(v.label+' for '+c.couple+' moved to '+v.editor);
     });
-    if(c.teaserSent && !o.teaserSent) out.push('Teaser sent for '+c.couple);
-    if(c.hlSent && !o.hlSent) out.push('Highlight sent for '+c.couple);
-    if(c.fullSent && !o.fullSent) out.push(c.couple+' closed');
+    (c.videos||[]).forEach(function(v){ var ov=(o.videos||[]).filter(function(x){return x.type===v.type;})[0]; if(v.sent && !(ov&&ov.sent)) out.push(v.label+' sent for '+c.couple); });
+    if(c.closed && !o.closed) out.push(c.couple+' closed');
+    if(!c.closed && o.closed) out.push(c.couple+' reopened');
   });
   if(fresh) out.push(fresh+(fresh===1?' new wedding':' new weddings')+' on the board');
   if(!out.length) return '';
