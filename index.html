@@ -119,12 +119,13 @@
   /* Editing board: 4 columns that always fit the screen (no sideways scrolling) */
   .board.four{grid-auto-flow:row;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;scroll-snap-type:none;align-items:start}
   .board.four .lane{min-width:0}
+  .ver{font-family:var(--sans);font-size:12px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;vertical-align:middle}
   .lane.mine{border-color:var(--due-bd)}
   .lane.mine h2{color:var(--due-fg)}
   .lane .lsub{font-size:12px;color:var(--muted);margin:-6px 4px 10px}
   @media (max-width:1000px){ .board.four{grid-template-columns:repeat(2,minmax(0,1fr))} }
   @media (max-width:640px){ .board.four{grid-template-columns:minmax(0,1fr)} }
-  details.donefold{margin-top:14px;background:var(--lane);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  details.donefold{margin:0 0 14px;background:var(--lane);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
   details.donefold summary{cursor:pointer;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cocoa)}
   details.donefold .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:10px}
   .tile.mine .n{color:var(--due-fg)}
@@ -316,7 +317,7 @@ function renderBoard(){
   var d=S.data, cards=d.cards;
   function count(st){ return cards.filter(function(c){return c.stage===st;}).length; }
   var late=cards.filter(function(c){return c.late && c.stage!=='closed';}).length;
-  var h='<header><div><h1>Editing</h1><div class="sub">'+esc(d.role)+' · today '+esc(d.today)+' · weddings from '+esc(d.trackFrom)+'</div></div>'+
+  var h='<header><div><h1>Editing <span class="ver">v1.1</span></h1><div class="sub">'+esc(d.role)+' · today '+esc(d.today)+' · weddings from '+esc(d.trackFrom)+'</div></div>'+
     '<div class="row" style="margin:0">'+viewSwitch()+(d.links&&d.links.Assistant?'<button class="chip" onclick="copyLink(\'Assistant\')">Copy Maga’s link</button>':'')+
     '<button class="chip" onclick="load()">Refresh</button></div></header>';
   (d.warnings||[]).forEach(function(w){ h+='<div class="warn-box">'+esc(w)+'</div>'; });
@@ -336,7 +337,7 @@ function renderBoard(){
   }).join('')+'</div>';
   h+='<div class="tools"><input type="search" placeholder="Search a couple" value="'+esc(S.q)+'" oninput="S.q=this.value;renderLanes()">'+
     ['all','late'].concat(EDS).map(function(f){return '<button class="chip'+(S.filter===f?' on':'')+'" onclick="setFilter(\''+f+'\')">'+(f==='all'?'All':f==='late'?'Late':f)+'</button>';}).join('')+'</div>';
-  h+='<div class="board four" id="lanes"></div><div id="donefold"></div>';
+  h+='<div id="donefold"></div><div class="board four" id="lanes"></div>';
   document.getElementById('app').innerHTML=h;
   renderLanes();
 }
@@ -406,7 +407,7 @@ function renderLanes(){
   var done=shown.filter(function(c){return laneOf(c)==='done';}), fold=document.getElementById('donefold');
   if(fold){
     var nm=done.filter(function(c){return c.stage==='match';}).length;
-    fold.innerHTML=done.length?'<details class="donefold"'+(S.foldOpen?' open':'')+' ontoggle="S.foldOpen=this.open"><summary>Done · sent and closed in the last 30 days ('+(done.length-nm)+')'+
+    fold.innerHTML=done.length?'<details class="donefold"'+(S.foldOpen?' open':'')+' ontoggle="S.foldOpen=this.open"><summary>Done · sent to the couple in the last 30 days ('+(done.length-nm)+')'+
       (nm?' · '+nm+' need a match':'')+'</summary><div class="grid">'+done.map(cardHtml).join('')+'</div></details>':'';
   }
 }
