@@ -106,6 +106,15 @@
   .acts a{font-size:13px;border-radius:8px;padding:7px 11px;border:1px solid var(--line);color:var(--ink);text-decoration:none;background:var(--field)}
   .acts a:hover{border-color:var(--muted)}
   .bride{cursor:default}
+  .mtiles{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  .mtiles .tile .n{font-size:28px}
+  .tile .cmp{font-size:12px;color:var(--muted);margin:2px 0 6px;min-height:16px}
+  .tile .cmp b{color:var(--ink);font-weight:600}
+  .mchart{display:block;width:100%;height:auto;overflow:visible}
+  .mchart text{font-family:var(--sans);font-size:14px;fill:var(--muted)}
+  .mchart text.v{fill:var(--ink)}
+  .urgent{display:block;width:100%;text-align:left;font:inherit;font-size:14px;cursor:pointer}
+  .lane .lsub{font-size:12px;color:var(--muted);margin:-6px 4px 10px}
   @media (max-width:640px){ .wrap{padding:12px} h1{font-size:23px} .board{grid-auto-columns:88%;scroll-snap-type:x mandatory} .hscroll{display:none} }
 </style>
 </head>
@@ -140,7 +149,7 @@ function cacheKey(){ return 'ep_board_' + (BOOT && BOOT.k || ''); }
 function saveCopy(d){ try { localStorage.setItem(cacheKey(), JSON.stringify({ t: Date.now(), d: d })); } catch (e) {} }
 function readCopy(){ try { var x = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return x && x.d && (Date.now() - x.t) < 7*864e5 ? x : null; } catch (e) { return null; } }
 var CONNECTED = !!BOOT && (!!API || !!(window.google && google.script));
-var S = { data:null, open:{}, q:'', filter:'all', confirm:'', view:'edit', bq:'', bfilter:'all' };
+var S = { data:null, open:{}, q:'', filter:'all', confirm:'', view:'edit', bq:'', bfilter:'all', bmonth:'cur' };
 try { S.view = location.hash==='#brides' ? 'brides' : (localStorage.getItem('ep_view')==='brides' ? 'brides' : 'edit'); } catch (e) {}
 var LANES = [
   ['upcoming','Coming up (next 14 days)'], ['footage','Waiting for footage'], ['editing','With editors'], ['ready','Ready to send'], ['revision','In revision'],
@@ -523,22 +532,53 @@ function dueKey(v){ var p=v.due.split('/'); return p[2]+p[0]+p[1]; }
 
 /* ---------------------------------------------------- Bride Pipeline (view only: brides move by themselves 3 times a day)
    Filled from the Leads tab: inquiry forms, calls, contracts and payments (emails + the Sales Board). Never any money. */
-var BLANES=[['signed','Signed · no deposit yet'],['new','New inquiries (14 days)'],['call','Call booked'],['sent','Contract out'],['follow','Follow up'],['booked','Booked (last 30 days)']];
+var BLANES=[['new','New inquiries','inquiries'],['call','Calls booked','calls'],['sent','Contracts sent','contracts'],['signed','Signed','signed'],['booked','Booked · deposit paid','booked'],['follow','Follow up','follow-ups']];
+var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function monthName(m,short){ var n=MONTHS[(+String(m).slice(5,7)||1)-1]; return short?n.slice(0,3):n; }
 function viewSwitch(){
   if(!S.data.pipeline) return '';
   return '<span class="views" role="tablist"><button role="tab" aria-selected="'+(S.view!=='brides')+'" class="'+(S.view!=='brides'?'on':'')+'" onclick="setView(\'edit\')">Editing</button>'+
     '<button role="tab" aria-selected="'+(S.view==='brides')+'" class="'+(S.view==='brides'?'on':'')+'" onclick="setView(\'brides\')">Brides</button></span>';
 }
 function setView(v){ S.view=v; try{ localStorage.setItem('ep_view',v); history.replaceState(null,'',v==='brides'?'#brides':location.pathname+location.search); }catch(e){} render(); window.scrollTo(0,0); }
+function bMonth(){ var M=(S.data.pipeline||{}).month||{}; return S.bmonth==='prev'?M.prev:M.cur; }
+function inLane(x,l,m){ var a=x.lanes||[]; return a.indexOf(l+'@'+m)>=0 || ((l==='sent'||l==='signed') && a.indexOf(l+'@open')>=0); }
+/* One small chart per parameter: last month (all of it) against this month so far.
+   The thin white mark on last month's bar is where last month stood on the same day. */
+function monthChart(l,st,M){
+  var max=Math.max(st.prev,st.cur,1), x0=38, w=118, bw=function(n){ return n?Math.max(3,Math.round(w*n/max)):0; };
+  var noun=BLANES.filter(function(b){return b[0]===l;})[0][2];
+  var tipPrev=monthName(M.prev)+': '+st.prev+' '+noun+' ('+st.prevSame+' by '+monthName(M.prev,1)+' '+M.day+')';
+  var tipCur=monthName(M.cur)+' so far: '+st.cur+' '+noun;
+  var tick=x0+Math.round(w*st.prevSame/max);
+  return '<svg class="mchart" viewBox="0 0 200 46" role="img" aria-label="'+esc(tipPrev+'. '+tipCur)+'">'+
+    '<text x="0" y="15">'+monthName(M.prev,1)+'</text>'+
+    '<rect x="'+x0+'" y="4" width="'+bw(st.prev)+'" height="13" rx="4" fill="#7D7168"><title>'+esc(tipPrev)+'</title></rect>'+
+    (st.prevSame?'<rect x="'+(tick-1)+'" y="1" width="2" height="19" fill="#F5F2EC"><title>'+esc(st.prevSame+' by '+monthName(M.prev,1)+' '+M.day)+'</title></rect>':'')+
+    '<text class="v" x="'+(x0+bw(st.prev)+6)+'" y="15">'+st.prev+'</text>'+
+    '<text x="0" y="38">'+monthName(M.cur,1)+'</text>'+
+    '<rect x="'+x0+'" y="27" width="'+bw(st.cur)+'" height="13" rx="4" fill="#E3D3BD"><title>'+esc(tipCur)+'</title></rect>'+
+    '<text class="v" x="'+(x0+bw(st.cur)+6)+'" y="38">'+st.cur+'</text></svg>';
+}
 function renderBrides(){
-  var d=S.data, P=d.pipeline||{brides:[]}, B=P.brides||[];
-  function count(l){ return B.filter(function(x){return x.lane===l;}).length; }
+  var d=S.data, P=d.pipeline||{brides:[]}, B=P.brides||[], M=P.month||{stats:{}}, m=bMonth();
   var h='<header><div><h1>Brides</h1><div class="sub">'+esc(d.role)+' · today '+esc(d.today)+(P.updated?' · emails read '+esc(P.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM</div></div>'+
     '<div class="row" style="margin:0">'+viewSwitch()+'<button class="chip" onclick="load()">Refresh</button></div></header>';
   if(P.error) h+='<div class="warn-box">'+esc(P.error)+'</div>';
   var sb=P.salesBoard;
   if(sb && sb.error) h+='<div class="warn-box">Sales Board link is not working: '+esc(sb.error)+'</div>';
-  h+='<div class="tiles">'+BLANES.map(function(l){ var n=count(l[0]); return '<button class="tile'+(S.bfilter===l[0]?' on':'')+(l[0]==='signed'&&n?' bad':'')+'" onclick="setBFilter(\''+l[0]+'\')"><div class="label">'+esc(l[1])+'</div><div class="n">'+n+'</div></button>'; }).join('')+'</div>';
+  if(!M.cur){ document.getElementById('app').innerHTML=h+'<div class="empty">No months yet</div>'; return; }
+  var urgent=B.filter(function(x){ return (x.lanes||[]).indexOf('signed@open')>=0; }).length;
+  if(urgent) h+='<button class="warn-box urgent" onclick="S.bfilter=\'signed\';renderBrides()">'+urgent+(urgent===1?' bride signed but has':' brides signed but have')+' not paid the deposit yet. Tap to see '+(urgent===1?'her':'them')+'.</button>';
+  h+='<div class="row" style="margin:0 0 12px;align-items:center"><span class="views" role="tablist">'+
+    ['cur','prev'].map(function(k){ var on=S.bmonth===k; return '<button role="tab" aria-selected="'+on+'" class="'+(on?'on':'')+'" onclick="S.bmonth=\''+k+'\';renderBrides()">'+monthName(M[k])+(k==='cur'?' (this month)':'')+'</button>'; }).join('')+
+    '</span><span class="sub">Each number counts what happened in that month. The white mark is where last month was on the same day. Contracts stay in “Contracts sent” while their '+esc(P.life||45)+' days are open.</span></div>';
+  h+='<div class="tiles mtiles">'+BLANES.map(function(l){
+    var st=M.stats[l[0]]||{cur:0,prev:0,prevSame:0}, n=S.bmonth==='prev'?st.prev:st.cur, cmp;
+    if(S.bmonth==='prev') cmp='All of '+monthName(M.prev);
+    else { var dlt=st.cur-st.prevSame; cmp=monthName(M.prev,1)+' 1–'+M.day+': <b>'+st.prevSame+'</b> · '+(dlt>0?'▲ '+dlt+' more':dlt<0?'▼ '+(-dlt)+' fewer':'same'); }
+    return '<button class="tile'+(S.bfilter===l[0]?' on':'')+'" onclick="setBFilter(\''+l[0]+'\')"><div class="label">'+esc(l[1])+'</div><div class="n">'+n+'</div><div class="cmp">'+cmp+'</div>'+monthChart(l[0],st,M)+'</button>';
+  }).join('')+'</div>';
   h+='<div class="tools"><input type="search" placeholder="Search a bride, email or venue" value="'+esc(S.bq)+'" oninput="S.bq=this.value;renderBLanes()">'+
     (sb?'<span class="sub">Sales Board: '+(sb.file?'checked against '+esc(sb.file.replace(/^ep_live_|\.txt$/g,''))+' · ':'')+(sb.unmatched||[]).length+' bookings not matched to a bride by name</span>':'')+'</div>';
   h+='<div class="hscroll" id="hscroll"><button class="chip arrow" onclick="slide(-1)" aria-label="Scroll left" title="Scroll left">◀</button>'+
@@ -550,35 +590,47 @@ function renderBrides(){
 }
 function setBFilter(f){ S.bfilter=(S.bfilter===f?'all':f); renderBrides(); }
 function renderBLanes(){
-  var B=(S.data.pipeline||{}).brides||[], q=S.bq.trim().toLowerCase();
-  var shown=B.filter(function(x){ return !q || (x.name+' '+x.email+' '+x.venue).toLowerCase().indexOf(q)>=0; });
+  var B=(S.data.pipeline||{}).brides||[], q=S.bq.trim().toLowerCase(), m=bMonth(), life=(S.data.pipeline||{}).life||45;
+  var shown=B.filter(function(x){ return !q || (x.name+' '+(x.couple||'')+' '+x.email+' '+x.venue).toLowerCase().indexOf(q)>=0; });
   var h='';
   BLANES.forEach(function(l){
     if(S.bfilter!=='all' && S.bfilter!==l[0]) return;
-    var list=shown.filter(function(x){return x.lane===l[0];});
-    h+='<section class="lane"><h2><span>'+esc(l[1])+'</span><span>'+list.length+'</span></h2>'+
-      (list.length?list.map(brideHtml).join(''):'<div class="empty">Nothing here</div>')+'</section>';
+    var list=shown.filter(function(x){ return inLane(x,l[0],m); });
+    var sub=l[0]==='sent'?'Sent in '+monthName(m)+', plus every contract still open ('+life+' days)':l[0]==='signed'?'Signed in '+monthName(m)+', plus anyone still without a deposit':l[0]==='follow'?'No call or contract 3+ days after the inquiry, or the contract expired':'';
+    h+='<section class="lane"><h2><span>'+esc(l[1])+'</span><span>'+list.length+'</span></h2>'+(sub?'<div class="lsub">'+esc(sub)+'</div>':'')+
+      (list.length?list.map(function(x){ return brideHtml(x,l[0]); }).join(''):'<div class="empty">Nothing here</div>')+'</section>';
   });
   document.getElementById('lanes').innerHTML=h;
   linkBars();
 }
 function ago(n){ return n===0?'today':n===1?'yesterday':n+' days ago'; }
-function brideHtml(x){
-  var p='', tel=String(x.phone||'').replace(/[^\d+]/g,'');
-  if(x.lane==='signed') p+='<span class="pill s-late">Signed '+esc(x.signed)+' · no deposit yet</span>';
-  if(x.lane==='new') p+='<span class="pill s-'+(x.age>=2?'due':'upcoming')+'">Inquiry '+esc(ago(x.age))+'</span>';
-  if(x.lane==='call') p+='<span class="pill s-ready">Call booked '+esc(x.call)+'</span>';
-  if(x.lane==='sent') p+='<span class="pill s-'+(x.left<=3?'late':x.left<=10?'due':'upcoming')+'">Contract sent '+esc(x.sent)+' · '+(x.left>0?x.left+(x.left===1?' day':' days')+' left':'expires today')+'</span>';
-  if(x.lane==='follow') p+='<span class="pill s-due">'+(x.status==='Contract expired'?'Contract expired · sent '+esc(x.sent):'Inquiry '+esc(ago(x.age))+' · no contract yet')+'</span>';
-  if(x.lane==='booked') p+='<span class="pill s-done">Paid '+esc(x.paid)+'</span>'+(x.sb==='Booked'?'<span class="pill s-done">On the Sales Board</span>':'');
+function stagePill(x){
+  var t={'Booked':['done','Booked'+(x.paid?' · paid '+x.paid:'')],'Signed, not paid':['late','Signed · no deposit yet'],'Contract sent':['upcoming','Contract out'],
+    'Call booked':['ready','Call booked'],'Contract expired':['due','Contract expired'],'Lead':['waiting','Inquiry only'],'Cancelled':['late','Cancelled']}[x.status];
+  return t?'<span class="pill s-'+t[0]+'">Now: '+esc(t[1])+'</span>':'';
+}
+function brideHtml(x,lane){
+  var p='', tel=String(x.phone||'').replace(/[^\d+]/g,''), stage=true;
+  if(lane==='new') p+='<span class="pill s-'+(x.status==='Lead'&&x.age>=2?'due':'upcoming')+'">Inquiry '+esc(x.received)+(x.age<=30?' · '+esc(ago(x.age)):'')+'</span>';
+  if(lane==='call'){ p+='<span class="pill s-ready">Call '+esc(x.call)+'</span>'; if(x.status==='Call booked') stage=false; }
+  if(lane==='sent'){
+    if(x.status==='Contract sent'){ stage=false; p+='<span class="pill s-'+(x.left<=3?'late':x.left<=10?'due':'upcoming')+'">Contract sent '+esc(x.sent)+' · '+(x.left>0?x.left+(x.left===1?' day':' days')+' left':'expires today')+'</span>'; }
+    else p+='<span class="pill s-upcoming">Contract sent '+esc(x.sent)+'</span>';
+  }
+  if(lane==='signed'){ stage=false; p+=x.paid?'<span class="pill s-done">Signed '+esc(x.signed)+' · deposit paid '+esc(x.paid)+'</span>':'<span class="pill s-late">Signed '+esc(x.signed)+' · no deposit yet</span>'; }
+  if(lane==='booked'){ stage=false; p+='<span class="pill s-done">Paid '+esc(x.paid)+'</span>'+(x.sb==='Booked'?'<span class="pill s-done">On the Sales Board</span>':''); }
+  if(lane==='follow'){ stage=false; p+='<span class="pill s-due">'+(x.status==='Contract expired'?'Contract expired · sent '+esc(x.sent):'Inquiry '+esc(ago(x.age))+' · no call or contract yet')+'</span>'; }
+  if(stage) p+=stagePill(x);
+  if(x.fromSB) p+='<span class="pill s-waiting">No inquiry linked</span>';
   if(x.source) p+='<span class="pill s-waiting">'+esc(x.source)+'</span>';
   var a='';
   if(tel) a+='<a href="tel:'+esc(tel)+'">Call</a><a href="sms:'+esc(tel)+'">Text</a>';
   if(x.email) a+='<a href="mailto:'+esc(x.email)+'">Email</a>';
   if(/^https:\/\/(app|hello)\.dubsado\.com\//.test(x.link)) a+='<a href="'+esc(x.link)+'" target="_blank" rel="noopener">Dubsado</a>';
+  var meta=x.fromSB?(x.couple?esc(x.couple)+' · ':'')+'from the Sales Board':(x.wedding?'Wedding '+esc(x.wedding):'No wedding date yet')+(x.venue?' · '+esc(x.venue):'');
   return '<div class="card bride"><div class="couple">'+esc(x.name)+'</div>'+
-    '<div class="meta">'+(x.wedding?'Wedding '+esc(x.wedding):'No wedding date yet')+(x.venue?' · '+esc(x.venue):'')+'</div>'+
-    '<div class="meta">'+esc(x.email)+(x.phone?' · '+esc(x.phone):'')+'</div>'+
+    '<div class="meta">'+meta+'</div>'+
+    (x.email||x.phone?'<div class="meta">'+esc(x.email)+(x.phone?' · '+esc(x.phone):'')+'</div>':'')+
     '<div class="pills" style="margin-top:8px">'+p+'</div>'+
     (x.notes?noteBoxPlain(x.notes):'')+
     (a?'<div class="acts">'+a+'</div>':'')+'</div>';
