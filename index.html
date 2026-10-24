@@ -140,6 +140,47 @@
   .ck.ro{cursor:default}
   #modal .checklist .ck{font-size:17px;padding:10px 12px}
   #modal .checklist{overflow:auto;max-height:70vh}
+  /* ---------- Marketing (Rafael only) ---------- */
+  .mk{--c-new:#8EC5FF;--c-call:#B9A6FF;--c-sent:#F0CF85;--c-signed:#F5A97F;--c-booked:#8CF5A8;--up:#8CF5A8;--down:#FF9A8B;display:grid;gap:16px}
+  .mk .sec{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-width:0}
+  .mk>*,.mk .grid2>*{min-width:0}
+  .mk .ctl .sub{flex:1 1 220px;min-width:0}
+  .mk .sec h2{font-family:var(--serif);font-weight:400;font-size:21px;margin:0 0 2px}
+  .mk .sec .lede{color:var(--muted);font-size:13px;margin:0 0 12px}
+  .mk .ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .mk .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+  .mk .kpi{background:var(--lane);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:12px;padding:12px 14px;display:grid;gap:6px;min-width:0}
+  .mk .kpi .k{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .mk .kpi .v{font-family:var(--serif);font-size:40px;line-height:1;color:var(--c)}
+  .mk .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .mk .dl{font-size:12px;border-radius:999px;padding:3px 8px;background:var(--field);color:var(--muted);white-space:nowrap}
+  .mk .dl.up{color:var(--up);background:rgba(140,245,168,.10)} .mk .dl.down{color:var(--down);background:rgba(255,154,139,.10)}
+  .mk .dl b{font-weight:600}
+  .mk svg{display:block;width:100%;height:auto;overflow:visible}
+  .mk svg text{font-family:var(--sans);fill:var(--muted);font-size:12px}
+  .mk svg text.v{fill:var(--ink);font-weight:600}
+  .mk svg text.big{font-size:15px}
+  .mk .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:16px}
+  .mk .grid2.wide{grid-template-columns:minmax(0,4fr) minmax(0,7fr)}
+  @media (max-width:1100px){ .mk .grid2.wide{grid-template-columns:minmax(0,1fr)} }
+  .mk .tbl.fit table{min-width:0;font-size:13px} .mk .tbl.fit th,.mk .tbl.fit td{padding:8px 7px}
+  .mk .tbl.fit th{letter-spacing:.04em}
+  .mk .tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  .mk table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+  .mk th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-weight:500;background:var(--lane)}
+  .mk th:first-child,.mk td:first-child{text-align:left}
+  .mk td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mk tr:last-child td{border-bottom:0}
+  .mk td .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px;vertical-align:-1px;background:var(--c)}
+  .mk td.up{color:var(--up)} .mk td.down{color:var(--down)} .mk td.dim,.mk span.dim{color:var(--muted)}
+  .mk tr.grp td{background:var(--lane);color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;text-align:left}
+  .mk tr.sel td{background:rgba(245,242,236,.06)}
+  .mk .heat{border-radius:6px;padding:2px 6px}
+  .mk .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);margin:2px 0 10px}
+  .mk .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-2px}
+  .mk .note{color:var(--muted);font-size:12.5px}
+  .mk .warn-box{margin:0}
+  .mk .tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#0E1A10;background:var(--c-booked);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:3px}
 </style>
 </head>
 <body>
@@ -157,7 +198,7 @@ function server(fn, args, ok, fail){
   if (!API) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[fn].apply(r, args); return; }
   var req = fn === 'ccAct'
     ? fetch(API, { method:'POST', credentials:'omit', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ fn:'act', args:args }) })
-    : fetchWithTimeout(API + '?api=' + (fn === 'ccLoad' ? 'load' : 'version') + '&k=' + encodeURIComponent(args[0]), 15000);
+    : fetchWithTimeout(API + '?api=' + (fn === 'ccLoad' ? 'load' : fn === 'ccMarketing' ? 'mkt' : 'version') + '&k=' + encodeURIComponent(args[0]), fn === 'ccMarketing' ? 40000 : 15000);
   req.then(function(res){ if (!res.ok) throw new Error('The server did not answer (' + res.status + '). Please try again in a moment.'); return res.json(); })
      .then(function(j){ if (j && j.error) fail(new Error(j.error)); else ok(j.result); })
      .catch(function(e){ if (e && e.name === 'AbortError') { var t = new Error('Google is taking too long to answer.'); t.timeout = true; return fail(t); }
@@ -174,7 +215,7 @@ function saveCopy(d){ try { localStorage.setItem(cacheKey(), JSON.stringify({ t:
 function readCopy(){ try { var x = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return x && x.d && (Date.now() - x.t) < 7*864e5 ? x : null; } catch (e) { return null; } }
 var CONNECTED = !!BOOT && (!!API || !!(window.google && google.script));
 var S = { data:null, open:{}, q:'', filter:'all', confirm:'', view:'edit', bq:'', bfilter:'all', bmonth:'cur' };
-try { S.view = location.hash==='#brides' ? 'brides' : (localStorage.getItem('ep_view')==='brides' ? 'brides' : 'edit'); } catch (e) {}
+try { var hv = location.hash==='#brides' ? 'brides' : location.hash==='#marketing' ? 'mkt' : '', lv = localStorage.getItem('ep_view'); S.view = hv || (lv==='brides'||lv==='mkt' ? lv : 'edit'); } catch (e) {}
 /* 4 columns, left to right the way a wedding moves. "Your turn" = Rafael: pick up delivered videos and upload them to
    MediaZilla, and do revisions. Maga sends only what is already on MediaZilla. Closed weddings fold away under the board. */
 var LANES = [['start','Coming up & footage'], ['editors','With editors'], ['mine','Your turn'], ['maga','Maga sends']];
@@ -668,11 +709,12 @@ var BLANES=[['new','New inquiries','inquiries'],['call','Calls booked','calls'],
 var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 function monthName(m,short){ var n=MONTHS[(+String(m).slice(5,7)||1)-1]; return short?n.slice(0,3):n; }
 function viewSwitch(){
-  if(!S.data.pipeline) return '';
-  return '<span class="views" role="tablist"><button role="tab" aria-selected="'+(S.view!=='brides')+'" class="'+(S.view!=='brides'?'on':'')+'" onclick="setView(\'edit\')">Editing</button>'+
-    '<button role="tab" aria-selected="'+(S.view==='brides')+'" class="'+(S.view==='brides'?'on':'')+'" onclick="setView(\'brides\')">Brides</button></span>';
+  var mk=S.data.role==='Rafael', v=S.view==='mkt'&&mk?'mkt':S.view==='brides'?'brides':'edit';
+  if(!S.data.pipeline && !mk) return '';
+  var b=function(id,label){ return '<button role="tab" aria-selected="'+(v===id)+'" class="'+(v===id?'on':'')+'" onclick="setView(\''+id+'\')">'+label+'</button>'; };
+  return '<span class="views" role="tablist">'+b('edit','Editing')+(S.data.pipeline?b('brides','Brides'):'')+(mk?b('mkt','Marketing'):'')+'</span>';
 }
-function setView(v){ S.view=v; try{ localStorage.setItem('ep_view',v); history.replaceState(null,'',v==='brides'?'#brides':location.pathname+location.search); }catch(e){} render(); window.scrollTo(0,0); }
+function setView(v){ S.view=v; try{ localStorage.setItem('ep_view',v); history.replaceState(null,'',v==='brides'?'#brides':v==='mkt'?'#marketing':location.pathname+location.search); }catch(e){} render(); window.scrollTo(0,0); }
 function bMonth(){ var M=(S.data.pipeline||{}).month||{}; return S.bmonth==='prev'?M.prev:M.cur; }
 function inLane(x,l,m){ var a=x.lanes||[]; return a.indexOf(l+'@'+m)>=0 || ((l==='sent'||l==='signed') && a.indexOf(l+'@open')>=0); }
 /* One small chart per parameter: last month (all of it) against this month so far.
@@ -822,7 +864,191 @@ if (CONNECTED) {
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
 }
 
-function render(){ if(!S.data) return; if(S.data.role==='Rafael'||S.data.role==='Assistant'){ if(S.view==='brides'&&S.data.pipeline) renderBrides(); else renderBoard(); } else renderEditor(); }
+/* ---------------------------------------------------- Marketing (only Rafael): the funnel by calendar month, against last month and
+   the same month last year. Built on the server from the Leads tab (this year), the Leads history tab (last year) and the Sales Board.
+   The month in progress is compared fairly: day 1 to today's day in every month it is compared with. */
+var MK=null, MKERR='', MKBUSY=false;
+var MKM=[['new','Inquiries','inquiries'],['call','Calls','calls'],['sent','Contracts sent','contracts'],['signed','Signed','signed'],['booked','Booked','bookings']];
+function mkPrev(m){ var y=+m.slice(0,4), mo=+m.slice(5,7)-1; if(!mo){ y--; mo=12; } return y+'-'+('0'+mo).slice(-2); }
+function mkLY(m){ return (+m.slice(0,4)-1)+m.slice(4); }
+function mkName(m,short){ return monthName(m,short)+' '+m.slice(0,4); }
+function loadMkt(){
+  if(MKBUSY) return; MKBUSY=true; MKERR='';
+  server('ccMarketing',[BOOT.k],function(d){ MKBUSY=false; MK=d; if(!S.mm||!MK.m[S.mm]) S.mm=MK.cur; if(S.view==='mkt') renderMarketing(); },
+    function(e){ MKBUSY=false; MKERR=String((e&&e.message)||e); if(S.view==='mkt') renderMarketing(); });
+}
+function mkHas(m){ return !!(MK && MK.m[m]) && (m>='2026-01' || (MK.history&&MK.history.rows>0)); }
+function mkV(m,k,fair){ if(!mkHas(m)) return null; var x=MK.m[m]; return fair?x.upto[k]:x.n[k]; }
+function mkFair(){ return !!(MK.m[S.mm]&&MK.m[S.mm].partial); }
+function mkCmpName(m,short){ return mkFair()? monthName(m,1)+' 1–'+MK.day+(m.slice(0,4)!==S.mm.slice(0,4)?' '+m.slice(0,4):'') : (short?monthName(m,1)+' '+m.slice(0,4):mkName(m)); }
+function mkDelta(a,b,pctOnly){
+  if(a===null||b===null) return {t:'no data',c:''};
+  var d=a-b, p=b?Math.round(d/b*100):null, c=d>0?'up':d<0?'down':'';
+  if(pctOnly) return {t:p===null?(d?'new':'='):(p>0?'+':'')+p+'%',c:c};
+  return {t:(d>0?'▲ +':d<0?'▼ ':'= ')+d+(p!==null&&d?' ('+(p>0?'+':'')+p+'%)':''),c:c};
+}
+function mkChip(label,a,b){ var x=mkDelta(a,b); return '<span class="dl '+x.c+'">vs '+esc(label)+': <b>'+esc(x.t)+'</b></span>'; }
+
+/* little bar chart under each number: the last 12 months, this month brightest, last year as dots */
+function mkSpark(k){
+  var ms=[], m=S.mm; for(var i=0;i<12;i++){ ms.unshift(m); m=mkPrev(m); }
+  var vals=ms.map(function(x){ return mkV(x,k,false); }), ly=ms.map(function(x){ return mkV(mkLY(x),k,false); });
+  var max=Math.max.apply(null,vals.concat(ly).map(function(v){return v||0;}).concat([1])), W=220, H=46, bw=W/12;
+  var h='<svg viewBox="0 0 '+W+' '+(H+12)+'" role="img" aria-label="Last 12 months">';
+  ms.forEach(function(x,i){
+    var v=vals[i], l=ly[i], bh=v===null?0:Math.max(v?2:0,Math.round(H*v/max)), sel=x===S.mm;
+    h+='<rect x="'+(i*bw+2)+'" y="'+(H-bh)+'" width="'+(bw-4)+'" height="'+bh+'" rx="2" fill="var(--c)" opacity="'+(sel?1:.45)+'"><title>'+esc(mkName(x)+': '+(v===null?'no data':v)+(l!==null?' · a year before: '+l:''))+'</title></rect>';
+    if(l!==null) h+='<circle cx="'+(i*bw+bw/2)+'" cy="'+(H-Math.round(H*l/max))+'" r="2.4" fill="var(--ink)" opacity=".75"/>';
+    if(i%3===2||sel) h+='<text x="'+(i*bw+bw/2)+'" y="'+(H+11)+'" text-anchor="middle" style="font-size:9.5px">'+monthName(x,1)+'</text>';
+  });
+  return h+'</svg>';
+}
+
+/* the funnel: this month (solid) with the same month last year as a dashed outline */
+function mkFunnel(){
+  var sel=S.mm, fair=mkFair(), ly=mkLY(sel), a=MKM.map(function(x){ return mkV(sel,x[0],false)||0; }), b=MKM.map(function(x){ return mkV(ly,x[0],fair); });
+  var max=Math.max.apply(null,a.concat(b.map(function(v){return v||0;})).concat([1])), W=520, RH=66, cx=290, half=135;
+  var h='<svg viewBox="0 0 '+W+' '+(RH*5+6)+'" role="img" aria-label="Funnel">';
+  MKM.forEach(function(x,i){
+    var y=i*RH+4, w=Math.max(a[i]?6:0,Math.round(2*half*a[i]/max)), lw=b[i]===null?0:Math.round(2*half*b[i]/max), col='var(--c-'+x[0]+')';
+    var conv=i&&a[0]?Math.round(a[i]/a[0]*100):null;
+    h+='<text x="0" y="'+(y+22)+'" class="v big">'+x[1]+'</text>';
+    h+='<text x="0" y="'+(y+42)+'">'+(i?(conv===null?'':conv+' per 100 inquiries'):'where it starts')+'</text>';
+    if(lw) h+='<rect x="'+(cx-lw/2)+'" y="'+(y+4)+'" width="'+lw+'" height="'+(RH-14)+'" rx="8" fill="none" stroke="var(--ink)" stroke-opacity=".45" stroke-dasharray="5 4"><title>'+esc(mkCmpName(ly)+': '+b[i])+'</title></rect>';
+    h+='<rect x="'+(cx-w/2)+'" y="'+(y+8)+'" width="'+w+'" height="'+(RH-22)+'" rx="6" fill="'+col+'"><title>'+esc(mkName(sel)+': '+a[i])+'</title></rect>';
+    h+='<text x="'+(cx+half+14)+'" y="'+(y+28)+'" class="v" style="font-size:24px;fill:'+col+'">'+a[i]+'</text>';
+    h+='<text x="'+(cx+half+14)+'" y="'+(y+47)+'">'+(b[i]===null?'no data':'last yr '+b[i])+'</text>';
+  });
+  return h+'</svg>';
+}
+
+/* one parameter through the year: this year (solid) next to the same month last year (faded) */
+function mkTrend(){
+  var k=S.mmet||'new', yr=S.mm.slice(0,4), col='var(--c-'+k+')', label=MKM.filter(function(x){return x[0]===k;})[0][1];
+  var ms=[]; for(var i=1;i<=12;i++) ms.push(yr+'-'+('0'+i).slice(-2));
+  var a=ms.map(function(m){ return mkV(m,k,false); }), b=ms.map(function(m){ return mkV(mkLY(m),k,false); });
+  var max=Math.max.apply(null,a.concat(b).map(function(v){return v||0;}).concat([1])), W=760, H=200, L=30, cw=(W-L)/12, top=18;
+  var h='<svg viewBox="0 0 '+W+' '+(H+40)+'" role="img" aria-label="'+esc(label)+' by month">';
+  [0,.5,1].forEach(function(f){ var y=top+H-Math.round(H*f), v=Math.round(max*f); h+='<line x1="'+L+'" x2="'+W+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end">'+v+'</text>'; });
+  ms.forEach(function(m,i){
+    var x=L+i*cw, bw=(cw-10)/2, va=a[i], vb=b[i];
+    if(vb!==null){ var hb=Math.round(H*vb/max); h+='<rect x="'+(x+5)+'" y="'+(top+H-hb)+'" width="'+bw+'" height="'+hb+'" rx="3" fill="'+col+'" opacity=".32"><title>'+esc(mkName(mkLY(m))+': '+vb)+'</title></rect>'; if(vb) h+='<text x="'+(x+5+bw/2)+'" y="'+(top+H-hb-5)+'" text-anchor="middle" style="font-size:10.5px">'+vb+'</text>'; }
+    if(va!==null){ var ha=Math.round(H*va/max), part=MK.m[m]&&MK.m[m].partial; h+='<rect x="'+(x+5+bw)+'" y="'+(top+H-ha)+'" width="'+bw+'" height="'+ha+'" rx="3" fill="'+col+'"'+(part?' opacity=".75" stroke="var(--ink)" stroke-dasharray="3 3"':'')+'><title>'+esc(mkName(m)+(part?' so far':'')+': '+va)+'</title></rect>'; h+='<text x="'+(x+5+bw*1.5)+'" y="'+(top+H-ha-5)+'" text-anchor="middle" class="v" style="font-size:11px">'+va+'</text>'; }
+    h+='<text x="'+(x+cw/2)+'" y="'+(top+H+18)+'" text-anchor="middle"'+(m===S.mm?' class="v"':'')+'>'+monthName(m,1)+'</text>';
+  });
+  return h+'</svg>';
+}
+
+/* where they come from: inquiries per source this month, last month and last year */
+function mkSources(){
+  var sel=S.mm, fair=mkFair(), p=mkPrev(sel), ly=mkLY(sel), X=MK.m[sel]||{src:{},bsrc:{}}, P=MK.m[p], Y=mkHas(ly)?MK.m[ly]:null;
+  var names={}; [X.src, P&&P.src, Y&&Y.src, X.bsrc].forEach(function(o){ Object.keys(o||{}).forEach(function(n){ names[n]=1; }); });
+  var list=Object.keys(names).filter(function(n){ return n!=='No inquiry form'; }).sort(function(a,b){ return (X.src[b]||0)-(X.src[a]||0) || ((P&&P.src[b])||0)-((P&&P.src[a])||0); });
+  var tot=Object.keys(X.src).reduce(function(s,n){ return s+X.src[n]; },0) || 1, max=1;
+  list.forEach(function(n){ max=Math.max(max,X.src[n]||0,(Y&&Y.src[n])||0); });
+  var W=520, RH=30, h='<svg viewBox="0 0 '+W+' '+(list.length*RH+4)+'" role="img" aria-label="Inquiries by source">';
+  list.forEach(function(n,i){
+    var y=i*RH, v=X.src[n]||0, l=Y?(Y.src[n]||0):null, w=Math.round(300*v/max), lw=l===null?0:Math.round(300*l/max);
+    h+='<text x="0" y="'+(y+19)+'" class="v">'+esc(n)+'</text>';
+    if(lw) h+='<rect x="150" y="'+(y+4)+'" width="'+lw+'" height="20" rx="4" fill="none" stroke="var(--ink)" stroke-opacity=".4" stroke-dasharray="4 3"/>';
+    h+='<rect x="150" y="'+(y+8)+'" width="'+Math.max(v?3:0,w)+'" height="12" rx="3" fill="var(--c-new)"><title>'+esc(n+': '+v+' inquiries')+'</title></rect>';
+    var bk=X.bsrc[n]||0; if(bk) h+='<rect x="150" y="'+(y+21)+'" width="'+Math.max(3,Math.round(300*bk/max))+'" height="4" rx="2" fill="var(--c-booked)"><title>'+esc(n+': '+bk+' booked')+'</title></rect>';
+    h+='<text x="'+(156+Math.max(w,lw))+'" y="'+(y+19)+'">'+v+' · '+Math.round(v/tot*100)+'%</text>';
+  });
+  h+='</svg>';
+  var t='<div class="tbl fit"><table><tr><th>Source</th><th>'+esc(mkCmpName(sel,1))+'</th><th>'+esc(mkCmpName(p,1))+'</th><th>Change</th><th>'+esc(mkCmpName(ly,1))+'</th><th>Change</th><th>Booked</th><th>Last yr</th></tr>';
+  list.concat(X.bsrc['No inquiry form']||(Y&&Y.bsrc['No inquiry form'])?['No inquiry form']:[]).forEach(function(n){
+    var v=X.src[n]||0, pv=P?(P.src[n]||0):null, lv=Y?(Y.src[n]||0):null, d1=mkDelta(v,pv,true), d2=mkDelta(v,lv,true);
+    if(n==='No inquiry form') { v=''; pv=''; lv=''; d1={t:'',c:''}; d2={t:'',c:''}; }
+    t+='<tr><td>'+esc(n)+'</td><td>'+v+'</td><td class="dim">'+(pv===null?'—':pv)+'</td><td class="'+d1.c+'">'+d1.t+'</td><td class="dim">'+(lv===null?'—':lv)+'</td><td class="'+d2.c+'">'+d2.t+'</td><td>'+(X.bsrc[n]||0)+'</td><td class="dim">'+(Y?(Y.bsrc[n]||0):'—')+'</td></tr>';
+  });
+  t+='</table></div>';
+  if(fair) t+='<div class="note" style="margin-top:6px">Sources compare whole months (the month so far for '+esc(monthName(sel))+').</div>';
+  return {chart:h, table:t, empty:!list.length};
+}
+
+/* month vs month table: this month, last month, same month last year — numbers, rates and speed */
+function mkCompareTable(){
+  var sel=S.mm, fair=mkFair(), p=mkPrev(sel), ly=mkLY(sel), X=MK.m[sel], P=mkHas(p)?MK.m[p]:null, Y=mkHas(ly)?MK.m[ly]:null;
+  function v(M,k){ return M?(fair?M.upto[k]:M.n[k]):null; }
+  function rate(M,a,b){ if(!M) return null; var x=v(M,a), y=v(M,b); return y?Math.round(x/y*100):null; }
+  var h='<div class="tbl fit"><table><tr><th></th><th>'+esc(fair?monthName(sel,1)+' 1–'+MK.day:mkName(sel))+'</th><th>'+esc(mkCmpName(p))+'</th><th>Change</th><th>'+esc(mkCmpName(ly))+'</th><th>Change</th></tr>';
+  h+='<tr class="grp"><td colspan="6">The funnel</td></tr>';
+  MKM.forEach(function(x){
+    var a=v(X,x[0]), b=v(P,x[0]), c=v(Y,x[0]), d1=mkDelta(a,b), d2=mkDelta(a,c);
+    h+='<tr><td style="--c:var(--c-'+x[0]+')"><span class="sw"></span>'+x[1]+'</td><td><b>'+a+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td class="'+d1.c+'">'+d1.t+'</td><td class="dim">'+(c===null?'—':c)+'</td><td class="'+d2.c+'">'+d2.t+'</td></tr>';
+  });
+  h+='<tr class="grp"><td colspan="6">Per 100 inquiries in the same month</td></tr>';
+  [['call','Calls'],['sent','Contracts sent'],['booked','Booked']].forEach(function(r){
+    var a=rate(X,r[0],'new'), b=rate(P,r[0],'new'), c=rate(Y,r[0],'new'), d1=mkDelta(a,b), d2=mkDelta(a,c);
+    h+='<tr><td>'+r[1]+'</td><td><b>'+(a===null?'—':a)+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td class="'+d1.c+'">'+(a===null||b===null?'':d1.t.replace(/\s*\(.*\)/,''))+'</td><td class="dim">'+(c===null?'—':c)+'</td><td class="'+d2.c+'">'+(a===null||c===null?'':d2.t.replace(/\s*\(.*\)/,''))+'</td></tr>';
+  });
+  var sr=function(M){ if(!M) return null; var x=M.n.sent, y=M.n.signed; return x?Math.round(y/x*100):null; };
+  (function(){ var a=sr(X), b=sr(P), c=sr(Y); h+='<tr><td>Signed per 100 contracts</td><td><b>'+(a===null?'—':a)+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td></td><td class="dim">'+(c===null?'—':c)+'</td><td></td></tr>'; })();
+  h+='<tr class="grp"><td colspan="6">Speed (middle bride of the month, whole month)</td></tr>';
+  [['toCall','Days from inquiry to call',true],['toBook','Days from inquiry to booking',true],['ahead','Months from inquiry to wedding',false]].forEach(function(r){
+    var a=X[r[0]], b=P?P[r[0]]:null, c=Y?Y[r[0]]:null;
+    var cls=function(o){ if(a===null||o===null||a===o) return ''; return (a<o)===r[2]?'up':'down'; };
+    h+='<tr><td>'+r[1]+'</td><td><b>'+(a===null?'—':a)+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td class="'+cls(b)+'">'+(a!==null&&b!==null?(a-b>0?'+':'')+(a-b):'')+'</td><td class="dim">'+(c===null?'—':c)+'</td><td class="'+cls(c)+'">'+(a!==null&&c!==null?(a-c>0?'+':'')+(a-c):'')+'</td></tr>';
+  });
+  return h+'</table></div>';
+}
+
+/* every month of the year next to the same month last year, with a year-to-date line at the bottom */
+function mkYearTable(){
+  var yr=S.mm.slice(0,4), cur=MK.cur, h='<div class="tbl"><table><tr><th>Month</th>';
+  MKM.forEach(function(x){ h+='<th style="color:var(--c-'+x[0]+')">'+x[1]+'</th><th>vs '+(+yr-1)+'</th>'; });
+  h+='</tr>';
+  var ta={}, tb={}; MKM.forEach(function(x){ ta[x[0]]=0; tb[x[0]]=null; });
+  for(var i=1;i<=12;i++){
+    var m=yr+'-'+('0'+i).slice(-2); if(m>cur) break;
+    var part=MK.m[m]&&MK.m[m].partial;
+    h+='<tr'+(m===S.mm?' class="sel"':'')+'><td>'+monthName(m)+(part?' <span class="dim">(1–'+MK.day+')</span>':'')+'</td>';
+    MKM.forEach(function(x){
+      var a=mkV(m,x[0],part), b=mkV(mkLY(m),x[0],part), d=mkDelta(a,b,true);
+      if(a!==null) ta[x[0]]+=a; if(b!==null) tb[x[0]]=(tb[x[0]]||0)+b;
+      h+='<td><b>'+(a===null?'—':a)+'</b> <span class="dim">/ '+(b===null?'—':b)+'</span></td><td class="'+d.c+'">'+(b===null?'':d.t)+'</td>';
+    });
+    h+='</tr>';
+  }
+  h+='<tr class="sel"><td><b>Year so far</b></td>';
+  MKM.forEach(function(x){ var d=mkDelta(ta[x[0]],tb[x[0]],true); h+='<td><b>'+ta[x[0]]+'</b> <span class="dim">/ '+(tb[x[0]]===null?'—':tb[x[0]])+'</span></td><td class="'+d.c+'">'+(tb[x[0]]===null?'':d.t)+'</td>'; });
+  return h+'</tr></table></div>';
+}
+
+function renderMarketing(){
+  var d=S.data, h='<header><div><h1>Marketing <span class="ver">alpha</span></h1><div class="sub">Only you see this · today '+esc(d.today)+(MK&&MK.updated?' · emails read '+esc(MK.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM</div></div>'+
+    '<div class="row" style="margin:0">'+viewSwitch()+'<button class="chip" onclick="MK=null;loadMkt();renderMarketing()">Refresh</button></div></header>';
+  if(!MK){
+    h+=MKERR?'<div class="warn-box">Marketing could not load: '+esc(MKERR)+' <button class="chip" onclick="loadMkt();renderMarketing()">Try again</button></div>':'<p class="sub">Loading the numbers…</p>';
+    document.getElementById('app').innerHTML=h; if(!MKERR) loadMkt(); return;
+  }
+  var sel=S.mm, fair=mkFair(), p=mkPrev(sel), ly=mkLY(sel);
+  h+='<div class="mk">';
+  h+='<div class="ctl"><select onchange="S.mm=this.value;renderMarketing()" aria-label="Month">'+MK.months.slice().reverse().filter(function(m){return mkHas(m);}).map(function(m){ return '<option value="'+m+'"'+(m===sel?' selected':'')+'>'+mkName(m)+(MK.m[m].partial?' (so far)':'')+'</option>'; }).join('')+'</select>'+
+     '<span class="sub">'+(fair?'Month in progress: every comparison uses day 1 to '+MK.day+' of that month, so it is fair.':'Whole months compared.')+'</span></div>';
+  if(!(MK.history&&MK.history.rows)) h+='<div class="warn-box">Last year is still loading from your emails. The “last year” columns fill in by themselves when it finishes.</div>';
+  h+='<div class="kpis">'+MKM.map(function(x){
+    var a=mkV(sel,x[0],false);
+    return '<div class="kpi" style="--c:var(--c-'+x[0]+')"><div class="k">'+x[1]+'</div><div class="v">'+a+'</div><div class="chips">'+
+      mkChip(mkCmpName(p,1),mkV(sel,x[0],fair),mkV(p,x[0],fair))+mkChip(mkCmpName(ly,1),mkV(sel,x[0],fair),mkV(ly,x[0],fair))+'</div>'+mkSpark(x[0])+'</div>';
+  }).join('')+'</div>';
+  h+='<div class="grid2 wide"><section class="sec"><h2>The funnel · '+esc(mkName(sel))+'</h2><p class="lede">Solid = '+esc(monthName(sel))+(fair?' so far':'')+'. Dashed outline = '+esc(mkCmpName(ly))+'.</p>'+mkFunnel()+'</section>'+
+     '<section class="sec"><h2>This month against the others</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same month.</p>'+mkCompareTable()+'</section></div>';
+  h+='<section class="sec"><h2>'+esc((MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1])+' by month · '+sel.slice(0,4)+' against '+(+sel.slice(0,4)-1)+'</h2>'+
+     '<div class="legend"><span><i style="background:var(--c-'+(S.mmet||'new')+')"></i>'+sel.slice(0,4)+'</span><span><i style="background:var(--c-'+(S.mmet||'new')+');opacity:.32"></i>'+(+sel.slice(0,4)-1)+'</span><span>Dashed bar = month in progress</span></div>'+
+     '<div class="ctl" style="margin-bottom:8px">'+MKM.map(function(x){ return '<button class="chip'+((S.mmet||'new')===x[0]?' on':'')+'" onclick="S.mmet=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>'+mkTrend()+'</section>';
+  var src=mkSources();
+  h+='<section class="sec"><h2>Where inquiries come from · '+esc(mkName(sel))+'</h2><p class="lede">From “How did you hear about us?” on the inquiry form. Blue = inquiries, green line = booked, dashed outline = same month last year.</p>'+
+     (src.empty?'<p class="sub">No inquiries with a source this month yet.</p>':'<div class="grid2"><div>'+src.chart+'</div><div>'+src.table+'</div></div>')+'</section>';
+  h+='<section class="sec"><h2>Month by month · '+sel.slice(0,4)+' / '+(+sel.slice(0,4)-1)+'</h2><p class="lede">Each cell: this year / the same month last year, then the change.</p>'+mkYearTable()+'</section>';
+  h+='<p class="note">How it is counted: Inquiries = website forms plus consultation calls booked without a form · Calls = Calendly consultation calls · Contracts = first contract emailed · Signed = Dubsado signature · Booked = deposit paid (the Sales Board date wins). Each one counts in the month it happened. Test entries and rows marked IGNORE are left out. '+
+     (MK.history&&MK.history.rows?'Last year: '+MK.history.rows+' brides from your emails, October 2024 to December 2025.':'')+'</p>';
+  h+='</div>';
+  document.getElementById('app').innerHTML=h;
+}
+
+function render(){ if(!S.data) return; if(S.data.role==='Rafael'||S.data.role==='Assistant'){ if(S.view==='mkt'&&S.data.role==='Rafael') renderMarketing(); else if(S.view==='brides'&&S.data.pipeline) renderBrides(); else renderBoard(); } else renderEditor(); }
 if (CONNECTED) load();
 else document.getElementById('app').innerHTML='<div class="warn-box">This page needs your private link. Ask Rafael for it.</div>';
 </script>
