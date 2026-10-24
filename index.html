@@ -141,7 +141,7 @@
   #modal .checklist .ck{font-size:17px;padding:10px 12px}
   #modal .checklist{overflow:auto;max-height:70vh}
   /* ---------- Marketing (Rafael only) ---------- */
-  .mk{--c-new:#8EC5FF;--c-call:#B9A6FF;--c-sent:#F0CF85;--c-signed:#F5A97F;--c-booked:#8CF5A8;--up:#8CF5A8;--down:#FF9A8B;display:grid;gap:16px}
+  .mk{--c-new:#8EC5FF;--c-call:#B9A6FF;--c-sent:#F0CF85;--c-signed:#F5A97F;--c-booked:#8CF5A8;--up:#8CF5A8;--down:#FF9A8B;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
   .mk .sec{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-width:0}
   .mk>*,.mk .grid2>*{min-width:0}
   .mk .ctl .sub{flex:1 1 220px;min-width:0}
@@ -164,7 +164,7 @@
   .mk .grid2.wide{grid-template-columns:minmax(0,4fr) minmax(0,7fr)}
   @media (max-width:1100px){ .mk .grid2.wide{grid-template-columns:minmax(0,1fr)} }
   .mk .tbl.fit table{min-width:0;font-size:13px} .mk .tbl.fit th,.mk .tbl.fit td{padding:8px 7px}
-  .mk .tbl.fit th{letter-spacing:.04em}
+  .mk .tbl.fit th{letter-spacing:.04em;white-space:normal;vertical-align:bottom;line-height:1.25}
   .mk .tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
   .mk table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
   .mk th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-weight:500;background:var(--lane)}
@@ -181,6 +181,11 @@
   .mk .note{color:var(--muted);font-size:12.5px}
   .mk .warn-box{margin:0}
   .mk .tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#0E1A10;background:var(--c-booked);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:3px}
+  .mk h2.mkh{font-family:var(--serif);font-weight:400;font-size:26px;margin:10px 0 -4px}
+  .mk .season{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+  .mk .season span{font-size:13px;border-radius:999px;padding:4px 10px;background:var(--field)}
+  .mk .season .pk{color:var(--up);background:rgba(140,245,168,.10)} .mk .season .sl{color:var(--down);background:rgba(255,154,139,.10)}
+  .mk .mklist{margin:10px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6} .mk .mklist .dim{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -864,11 +869,12 @@ if (CONNECTED) {
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
 }
 
-/* ---------------------------------------------------- Marketing (only Rafael): the funnel by calendar month, against last month and
-   the same month last year. Built on the server from the Leads tab (this year), the Leads history tab (last year) and the Sales Board.
-   The month in progress is compared fairly: day 1 to today's day in every month it is compared with. */
+/* ---------------------------------------------------- Marketing (only Rafael): the funnel by month, quarter or year, against the period
+   before and the same period last year, plus the seasons. Built on the server from the Leads tab (this year), the Leads history tab
+   (last year), the Sales Board and the master (weddings on the calendar). A period in progress is compared at the same point in time. */
 var MK=null, MKERR='', MKBUSY=false;
 var MKM=[['new','Inquiries','inquiries'],['call','Calls','calls'],['sent','Contracts sent','contracts'],['signed','Signed','signed'],['booked','Booked','bookings']];
+var MSH=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function mkPrev(m){ var y=+m.slice(0,4), mo=+m.slice(5,7)-1; if(!mo){ y--; mo=12; } return y+'-'+('0'+mo).slice(-2); }
 function mkLY(m){ return (+m.slice(0,4)-1)+m.slice(4); }
 function mkName(m,short){ return monthName(m,short)+' '+m.slice(0,4); }
@@ -879,8 +885,35 @@ function loadMkt(){
 }
 function mkHas(m){ return !!(MK && MK.m[m]) && (m>='2026-01' || (MK.history&&MK.history.rows>0)); }
 function mkV(m,k,fair){ if(!mkHas(m)) return null; var x=MK.m[m]; return fair?x.upto[k]:x.n[k]; }
-function mkFair(){ return !!(MK.m[S.mm]&&MK.m[S.mm].partial); }
-function mkCmpName(m,short){ return mkFair()? monthName(m,1)+' 1–'+MK.day+(m.slice(0,4)!==S.mm.slice(0,4)?' '+m.slice(0,4):'') : (short?monthName(m,1)+' '+m.slice(0,4):mkName(m)); }
+
+/* periods: month 2026-10 · quarter 2026-Q4 · year 2026 */
+function mkT(){ return S.mp||'month'; }
+function qOf(m){ return m.slice(0,4)+'-Q'+Math.ceil(+m.slice(5,7)/3); }
+function pSel(t){ t=t||mkT(); var m=S.mm||MK.cur; return t==='month'?m:t==='quarter'?qOf(m):m.slice(0,4); }
+function pMonths(t,key){
+  if(t==='month') return [key];
+  var y=key.slice(0,4), out=[];
+  if(t==='quarter'){ var q=+key.slice(6); for(var i=1;i<=3;i++) out.push(y+'-'+('0'+((q-1)*3+i)).slice(-2)); return out; }
+  for(var j=1;j<=12;j++) out.push(y+'-'+('0'+j).slice(-2)); return out;
+}
+function pPrev(t,key){ if(t==='month') return mkPrev(key); if(t==='year') return String(+key-1); var y=+key.slice(0,4), q=+key.slice(6)-1; if(!q){ y--; q=4; } return y+'-Q'+q; }
+function pLY(t,key){ if(t==='month') return mkLY(key); if(t==='year') return String(+key-1); return (+key.slice(0,4)-1)+key.slice(4); }
+function pName(t,key,short){ if(t==='month') return short?monthName(key,1)+' '+key.slice(0,4):mkName(key); if(t==='year') return key; var q=+key.slice(6); return 'Q'+q+' '+key.slice(0,4)+(short?'':' ('+MSH[(q-1)*3]+'–'+MSH[(q-1)*3+2]+')'); }
+/* how far into the selected period we are: -1 = finished, else index of this month inside it */
+function pIdx(){ return pMonths(mkT(),pSel()).indexOf(MK.cur); }
+function pFair(){ return pIdx()>=0; }
+function pVal(t,key,k,fair){
+  var ms=pMonths(t,key), idx=fair?pIdx():-1, s=0;
+  if(idx>=0) ms=ms.slice(0,idx+1);
+  for(var i=0;i<ms.length;i++){ var v=mkV(ms[i],k,idx>=0&&i===idx); if(v===null) return null; s+=v; }
+  return s;
+}
+function pLabel(t,key){
+  if(!pFair()) return pName(t,key,true);
+  var ms=pMonths(t,key), idx=pIdx(), last=ms[idx];
+  if(t==='month') return monthName(key,1)+' 1–'+MK.day+(key.slice(0,4)!==S.mm.slice(0,4)?' '+key.slice(0,4):'');
+  return pName(t,key,true)+' to '+monthName(last,1)+' '+MK.day;
+}
 function mkDelta(a,b,pctOnly){
   if(a===null||b===null) return {t:'no data',c:''};
   var d=a-b, p=b?Math.round(d/b*100):null, c=d>0?'up':d<0?'down':'';
@@ -888,25 +921,27 @@ function mkDelta(a,b,pctOnly){
   return {t:(d>0?'▲ +':d<0?'▼ ':'= ')+d+(p!==null&&d?' ('+(p>0?'+':'')+p+'%)':''),c:c};
 }
 function mkChip(label,a,b){ var x=mkDelta(a,b); return '<span class="dl '+x.c+'">vs '+esc(label)+': <b>'+esc(x.t)+'</b></span>'; }
+function mkCmps(){ var t=mkT(), k=pSel(); return t==='year'?[[pPrev(t,k),'last year']]:[[pPrev(t,k),t==='month'?'month before':'quarter before'],[pLY(t,k),'same '+(t==='month'?'month':'quarter')+' last year']]; }
 
-/* little bar chart under each number: the last 12 months, this month brightest, last year as dots */
+/* little bar chart under each number: the last 12 months, the selected period brightest, last year as dots */
 function mkSpark(k){
-  var ms=[], m=S.mm; for(var i=0;i<12;i++){ ms.unshift(m); m=mkPrev(m); }
+  var ms=[], m=MK.cur; for(var i=0;i<12;i++){ ms.unshift(m); m=mkPrev(m); }
+  var sel=pMonths(mkT(),pSel());
   var vals=ms.map(function(x){ return mkV(x,k,false); }), ly=ms.map(function(x){ return mkV(mkLY(x),k,false); });
   var max=Math.max.apply(null,vals.concat(ly).map(function(v){return v||0;}).concat([1])), W=220, H=46, bw=W/12;
   var h='<svg viewBox="0 0 '+W+' '+(H+12)+'" role="img" aria-label="Last 12 months">';
   ms.forEach(function(x,i){
-    var v=vals[i], l=ly[i], bh=v===null?0:Math.max(v?2:0,Math.round(H*v/max)), sel=x===S.mm;
-    h+='<rect x="'+(i*bw+2)+'" y="'+(H-bh)+'" width="'+(bw-4)+'" height="'+bh+'" rx="2" fill="var(--c)" opacity="'+(sel?1:.45)+'"><title>'+esc(mkName(x)+': '+(v===null?'no data':v)+(l!==null?' · a year before: '+l:''))+'</title></rect>';
+    var v=vals[i], l=ly[i], bh=v===null?0:Math.max(v?2:0,Math.round(H*v/max)), on=sel.indexOf(x)>=0;
+    h+='<rect x="'+(i*bw+2)+'" y="'+(H-bh)+'" width="'+(bw-4)+'" height="'+bh+'" rx="2" fill="var(--c)" opacity="'+(on?1:.42)+'"><title>'+esc(mkName(x)+': '+(v===null?'no data':v)+(l!==null?' · a year before: '+l:''))+'</title></rect>';
     if(l!==null) h+='<circle cx="'+(i*bw+bw/2)+'" cy="'+(H-Math.round(H*l/max))+'" r="2.4" fill="var(--ink)" opacity=".75"/>';
-    if(i%3===2||sel) h+='<text x="'+(i*bw+bw/2)+'" y="'+(H+11)+'" text-anchor="middle" style="font-size:9.5px">'+monthName(x,1)+'</text>';
+    if(i%3===2) h+='<text x="'+(i*bw+bw/2)+'" y="'+(H+11)+'" text-anchor="middle" style="font-size:9.5px">'+monthName(x,1)+'</text>';
   });
   return h+'</svg>';
 }
 
-/* the funnel: this month (solid) with the same month last year as a dashed outline */
+/* the funnel: the selected period (solid) with the same period last year as a dashed outline */
 function mkFunnel(){
-  var sel=S.mm, fair=mkFair(), ly=mkLY(sel), a=MKM.map(function(x){ return mkV(sel,x[0],false)||0; }), b=MKM.map(function(x){ return mkV(ly,x[0],fair); });
+  var t=mkT(), sel=pSel(), fair=pFair(), ly=pLY(t,sel), a=MKM.map(function(x){ return pVal(t,sel,x[0],fair)||0; }), b=MKM.map(function(x){ return pVal(t,ly,x[0],fair); });
   var max=Math.max.apply(null,a.concat(b.map(function(v){return v||0;})).concat([1])), W=520, RH=66, cx=290, half=135;
   var h='<svg viewBox="0 0 '+W+' '+(RH*5+6)+'" role="img" aria-label="Funnel">';
   MKM.forEach(function(x,i){
@@ -914,136 +949,282 @@ function mkFunnel(){
     var conv=i&&a[0]?Math.round(a[i]/a[0]*100):null;
     h+='<text x="0" y="'+(y+22)+'" class="v big">'+x[1]+'</text>';
     h+='<text x="0" y="'+(y+42)+'">'+(i?(conv===null?'':conv+' per 100 inquiries'):'where it starts')+'</text>';
-    if(lw) h+='<rect x="'+(cx-lw/2)+'" y="'+(y+4)+'" width="'+lw+'" height="'+(RH-14)+'" rx="8" fill="none" stroke="var(--ink)" stroke-opacity=".45" stroke-dasharray="5 4"><title>'+esc(mkCmpName(ly)+': '+b[i])+'</title></rect>';
-    h+='<rect x="'+(cx-w/2)+'" y="'+(y+8)+'" width="'+w+'" height="'+(RH-22)+'" rx="6" fill="'+col+'"><title>'+esc(mkName(sel)+': '+a[i])+'</title></rect>';
+    if(lw) h+='<rect x="'+(cx-lw/2)+'" y="'+(y+4)+'" width="'+lw+'" height="'+(RH-14)+'" rx="8" fill="none" stroke="var(--ink)" stroke-opacity=".45" stroke-dasharray="5 4"><title>'+esc(pLabel(t,ly)+': '+b[i])+'</title></rect>';
+    h+='<rect x="'+(cx-w/2)+'" y="'+(y+8)+'" width="'+w+'" height="'+(RH-22)+'" rx="6" fill="'+col+'"><title>'+esc(pLabel(t,sel)+': '+a[i])+'</title></rect>';
     h+='<text x="'+(cx+half+14)+'" y="'+(y+28)+'" class="v" style="font-size:24px;fill:'+col+'">'+a[i]+'</text>';
     h+='<text x="'+(cx+half+14)+'" y="'+(y+47)+'">'+(b[i]===null?'no data':'last yr '+b[i])+'</text>';
   });
   return h+'</svg>';
 }
 
-/* one parameter through the year: this year (solid) next to the same month last year (faded) */
+/* bar chart: this year's periods (solid) next to last year's (faded) — months, quarters or years */
 function mkTrend(){
-  var k=S.mmet||'new', yr=S.mm.slice(0,4), col='var(--c-'+k+')', label=MKM.filter(function(x){return x[0]===k;})[0][1];
-  var ms=[]; for(var i=1;i<=12;i++) ms.push(yr+'-'+('0'+i).slice(-2));
-  var a=ms.map(function(m){ return mkV(m,k,false); }), b=ms.map(function(m){ return mkV(mkLY(m),k,false); });
-  var max=Math.max.apply(null,a.concat(b).map(function(v){return v||0;}).concat([1])), W=760, H=200, L=30, cw=(W-L)/12, top=18;
-  var h='<svg viewBox="0 0 '+W+' '+(H+40)+'" role="img" aria-label="'+esc(label)+' by month">';
-  [0,.5,1].forEach(function(f){ var y=top+H-Math.round(H*f), v=Math.round(max*f); h+='<line x1="'+L+'" x2="'+W+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end">'+v+'</text>'; });
-  ms.forEach(function(m,i){
-    var x=L+i*cw, bw=(cw-10)/2, va=a[i], vb=b[i];
-    if(vb!==null){ var hb=Math.round(H*vb/max); h+='<rect x="'+(x+5)+'" y="'+(top+H-hb)+'" width="'+bw+'" height="'+hb+'" rx="3" fill="'+col+'" opacity=".32"><title>'+esc(mkName(mkLY(m))+': '+vb)+'</title></rect>'; if(vb) h+='<text x="'+(x+5+bw/2)+'" y="'+(top+H-hb-5)+'" text-anchor="middle" style="font-size:10.5px">'+vb+'</text>'; }
-    if(va!==null){ var ha=Math.round(H*va/max), part=MK.m[m]&&MK.m[m].partial; h+='<rect x="'+(x+5+bw)+'" y="'+(top+H-ha)+'" width="'+bw+'" height="'+ha+'" rx="3" fill="'+col+'"'+(part?' opacity=".75" stroke="var(--ink)" stroke-dasharray="3 3"':'')+'><title>'+esc(mkName(m)+(part?' so far':'')+': '+va)+'</title></rect>'; h+='<text x="'+(x+5+bw*1.5)+'" y="'+(top+H-ha-5)+'" text-anchor="middle" class="v" style="font-size:11px">'+va+'</text>'; }
-    h+='<text x="'+(x+cw/2)+'" y="'+(top+H+18)+'" text-anchor="middle"'+(m===S.mm?' class="v"':'')+'>'+monthName(m,1)+'</text>';
+  var t=mkT(), k=S.mmet||'new', col='var(--c-'+k+')', yr=pSel().slice(0,4), keys=[], labels=[];
+  if(t==='month'){ for(var i=1;i<=12;i++){ keys.push(yr+'-'+('0'+i).slice(-2)); labels.push(MSH[i-1]); } }
+  else if(t==='quarter'){ for(var q=1;q<=4;q++){ keys.push(yr+'-Q'+q); labels.push('Q'+q); } }
+  else { for(var y=2025;y<=+MK.cur.slice(0,4);y++){ keys.push(String(y)); labels.push(String(y)); } }
+  var cur=t==='month'?MK.cur:t==='quarter'?qOf(MK.cur):MK.cur.slice(0,4);
+  function val(key){ if(t==='month') return mkV(key,k,false); var ms=pMonths(t,key), s=0, any=false; for(var i=0;i<ms.length;i++){ if(ms[i]>MK.cur) break; var v=mkV(ms[i],k,false); if(v===null) return null; s+=v; any=true; } return any?s:null; }
+  function fairLY(key){ /* last year up to the same day, for the period in progress */
+    var idx=pMonths(t,key).indexOf(MK.cur); if(idx<0) return null; var ms=pMonths(t,t==='year'?String(+key-1):pLY(t,key)).slice(0,idx+1), s=0;
+    for(var i=0;i<ms.length;i++){ var v=mkV(ms[i],k,i===idx); if(v===null) return null; s+=v; } return s; }
+  var a=keys.map(val), b=keys.map(function(key){ return t==='year'?null:val(pLY(t,key)); });
+  var max=Math.max.apply(null,a.concat(b).map(function(v){return v||0;}).concat([1])), n=keys.length, W=760, H=200, L=34, cw=(W-L)/n, top=18;
+  var h='<svg viewBox="0 0 '+W+' '+(H+40)+'" role="img" aria-label="By period">';
+  [0,.5,1].forEach(function(f){ var y=top+H-Math.round(H*f); h+='<line x1="'+L+'" x2="'+W+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end">'+Math.round(max*f)+'</text>'; });
+  keys.forEach(function(key,i){
+    var x=L+i*cw, two=t!=='year', bw=two?(cw-10)/2:Math.min(120,cw-30), x0=two?x+5:x+(cw-bw)/2, va=a[i], vb=b[i], part=key===cur;
+    if(two&&vb!==null){ var hb=Math.round(H*vb/max); h+='<rect x="'+x0+'" y="'+(top+H-hb)+'" width="'+bw+'" height="'+hb+'" rx="3" fill="'+col+'" opacity=".32"><title>'+esc(pName(t,pLY(t,key),true)+': '+vb)+'</title></rect>'; if(vb) h+='<text x="'+(x0+bw/2)+'" y="'+(top+H-hb-5)+'" text-anchor="middle" style="font-size:10.5px">'+vb+'</text>'; }
+    if(va!==null){ var ha=Math.round(H*va/max), xa=two?x0+bw:x0; h+='<rect x="'+xa+'" y="'+(top+H-ha)+'" width="'+bw+'" height="'+ha+'" rx="3" fill="'+col+'"'+(part?' opacity=".75" stroke="var(--ink)" stroke-dasharray="3 3"':'')+'><title>'+esc(pName(t,key,true)+(part?' so far':'')+': '+va)+'</title></rect>'; h+='<text x="'+(xa+bw/2)+'" y="'+(top+H-ha-5)+'" text-anchor="middle" class="v" style="font-size:11px">'+va+'</text>';
+      if(part){ var fl=t==='year'?(function(){ var ms=pMonths('year',String(+key-1)).slice(0,pMonths('year',key).indexOf(MK.cur)+1), s=0; for(var j=0;j<ms.length;j++){ var v=mkV(ms[j],k,j===ms.length-1); if(v===null) return null; s+=v; } return s; })():fairLY(key);
+        if(fl!==null){ var hf=Math.round(H*fl/max); h+='<line x1="'+(xa-3)+'" x2="'+(xa+bw+3)+'" y1="'+(top+H-hf)+'" y2="'+(top+H-hf)+'" stroke="var(--ink)" stroke-width="2"><title>'+esc('Last year by the same day: '+fl)+'</title></line>'; } } }
+    h+='<text x="'+(x+cw/2)+'" y="'+(top+H+18)+'" text-anchor="middle"'+(key===pSel()?' class="v"':'')+'>'+labels[i]+'</text>';
   });
   return h+'</svg>';
 }
 
-/* where they come from: inquiries per source this month, last month and last year */
+/* where they come from: inquiries per source (whole months of the period) */
+function mkSrcSum(t,key,f){ /* same cut-off as the numbers: a period in progress is compared up to the same day */
+  var o={}, ms=pMonths(t,key), idx=pIdx(); if(idx>=0) ms=ms.slice(0,idx+1);
+  for(var i=0;i<ms.length;i++){ if(!mkHas(ms[i])) return null; var x=MK.m[ms[i]][idx>=0&&i===idx?f+'U':f]||{}; Object.keys(x).forEach(function(n){ o[n]=(o[n]||0)+x[n]; }); } return o; }
 function mkSources(){
-  var sel=S.mm, fair=mkFair(), p=mkPrev(sel), ly=mkLY(sel), X=MK.m[sel]||{src:{},bsrc:{}}, P=MK.m[p], Y=mkHas(ly)?MK.m[ly]:null;
-  var names={}; [X.src, P&&P.src, Y&&Y.src, X.bsrc].forEach(function(o){ Object.keys(o||{}).forEach(function(n){ names[n]=1; }); });
-  var list=Object.keys(names).filter(function(n){ return n!=='No inquiry form'; }).sort(function(a,b){ return (X.src[b]||0)-(X.src[a]||0) || ((P&&P.src[b])||0)-((P&&P.src[a])||0); });
-  var tot=Object.keys(X.src).reduce(function(s,n){ return s+X.src[n]; },0) || 1, max=1;
-  list.forEach(function(n){ max=Math.max(max,X.src[n]||0,(Y&&Y.src[n])||0); });
+  var t=mkT(), sel=pSel(), p=pPrev(t,sel), ly=pLY(t,sel), X=mkSrcSum(t,sel,'src')||{}, XB=mkSrcSum(t,sel,'bsrc')||{}, P=mkSrcSum(t,p,'src'), Y=mkSrcSum(t,ly,'src'), YB=mkSrcSum(t,ly,'bsrc');
+  var names={}; [X,P,Y,XB].forEach(function(o){ Object.keys(o||{}).forEach(function(n){ names[n]=1; }); });
+  var list=Object.keys(names).filter(function(n){ return n!=='No inquiry form'; }).sort(function(a,b){ return (X[b]||0)-(X[a]||0) || ((P&&P[b])||0)-((P&&P[a])||0); });
+  var tot=Object.keys(X).reduce(function(s,n){ return s+X[n]; },0) || 1, max=1;
+  list.forEach(function(n){ max=Math.max(max,X[n]||0,(Y&&Y[n])||0); });
   var W=520, RH=30, h='<svg viewBox="0 0 '+W+' '+(list.length*RH+4)+'" role="img" aria-label="Inquiries by source">';
   list.forEach(function(n,i){
-    var y=i*RH, v=X.src[n]||0, l=Y?(Y.src[n]||0):null, w=Math.round(300*v/max), lw=l===null?0:Math.round(300*l/max);
+    var y=i*RH, v=X[n]||0, l=Y?(Y[n]||0):null, w=Math.round(300*v/max), lw=l===null?0:Math.round(300*l/max);
     h+='<text x="0" y="'+(y+19)+'" class="v">'+esc(n)+'</text>';
     if(lw) h+='<rect x="150" y="'+(y+4)+'" width="'+lw+'" height="20" rx="4" fill="none" stroke="var(--ink)" stroke-opacity=".4" stroke-dasharray="4 3"/>';
     h+='<rect x="150" y="'+(y+8)+'" width="'+Math.max(v?3:0,w)+'" height="12" rx="3" fill="var(--c-new)"><title>'+esc(n+': '+v+' inquiries')+'</title></rect>';
-    var bk=X.bsrc[n]||0; if(bk) h+='<rect x="150" y="'+(y+21)+'" width="'+Math.max(3,Math.round(300*bk/max))+'" height="4" rx="2" fill="var(--c-booked)"><title>'+esc(n+': '+bk+' booked')+'</title></rect>';
+    var bk=XB[n]||0; if(bk) h+='<rect x="150" y="'+(y+21)+'" width="'+Math.max(3,Math.round(300*bk/max))+'" height="4" rx="2" fill="var(--c-booked)"><title>'+esc(n+': '+bk+' booked')+'</title></rect>';
     h+='<text x="'+(156+Math.max(w,lw))+'" y="'+(y+19)+'">'+v+' · '+Math.round(v/tot*100)+'%</text>';
   });
   h+='</svg>';
-  var t='<div class="tbl fit"><table><tr><th>Source</th><th>'+esc(mkCmpName(sel,1))+'</th><th>'+esc(mkCmpName(p,1))+'</th><th>Change</th><th>'+esc(mkCmpName(ly,1))+'</th><th>Change</th><th>Booked</th><th>Last yr</th></tr>';
-  list.concat(X.bsrc['No inquiry form']||(Y&&Y.bsrc['No inquiry form'])?['No inquiry form']:[]).forEach(function(n){
-    var v=X.src[n]||0, pv=P?(P.src[n]||0):null, lv=Y?(Y.src[n]||0):null, d1=mkDelta(v,pv,true), d2=mkDelta(v,lv,true);
-    if(n==='No inquiry form') { v=''; pv=''; lv=''; d1={t:'',c:''}; d2={t:'',c:''}; }
-    t+='<tr><td>'+esc(n)+'</td><td>'+v+'</td><td class="dim">'+(pv===null?'—':pv)+'</td><td class="'+d1.c+'">'+d1.t+'</td><td class="dim">'+(lv===null?'—':lv)+'</td><td class="'+d2.c+'">'+d2.t+'</td><td>'+(X.bsrc[n]||0)+'</td><td class="dim">'+(Y?(Y.bsrc[n]||0):'—')+'</td></tr>';
+  var cmp=t!=='year';
+  var tb='<div class="tbl fit"><table><tr><th>Source</th><th>'+esc(pLabel(t,sel))+'</th>'+(cmp?'<th>'+esc(pLabel(t,p))+'</th><th>Change</th>':'')+'<th>'+esc(pLabel(t,ly))+'</th><th>Change</th><th>Booked</th><th>Booked last yr</th></tr>';
+  list.concat(XB['No inquiry form']||(YB&&YB['No inquiry form'])?['No inquiry form']:[]).forEach(function(n){
+    var v=X[n]||0, pv=P?(P[n]||0):null, lv=Y?(Y[n]||0):null, d1=mkDelta(v,pv,true), d2=mkDelta(v,lv,true), nf=n==='No inquiry form';
+    tb+='<tr><td>'+esc(n)+'</td><td>'+(nf?'':v)+'</td>'+(cmp?'<td class="dim">'+(nf?'':pv===null?'—':pv)+'</td><td class="'+(nf?'':d1.c)+'">'+(nf?'':d1.t)+'</td>':'')+'<td class="dim">'+(nf?'':lv===null?'—':lv)+'</td><td class="'+(nf?'':d2.c)+'">'+(nf?'':d2.t)+'</td><td>'+(XB[n]||0)+'</td><td class="dim">'+(YB?(YB[n]||0):'—')+'</td></tr>';
   });
-  t+='</table></div>';
-  if(fair) t+='<div class="note" style="margin-top:6px">Sources compare whole months (the month so far for '+esc(monthName(sel))+').</div>';
-  return {chart:h, table:t, empty:!list.length};
+  tb+='</table></div>';
+  return {chart:h, table:tb, empty:!list.length};
 }
 
-/* month vs month table: this month, last month, same month last year — numbers, rates and speed */
+/* this period against the period before and the same period last year — numbers, rates and speed */
 function mkCompareTable(){
-  var sel=S.mm, fair=mkFair(), p=mkPrev(sel), ly=mkLY(sel), X=MK.m[sel], P=mkHas(p)?MK.m[p]:null, Y=mkHas(ly)?MK.m[ly]:null;
-  function v(M,k){ return M?(fair?M.upto[k]:M.n[k]):null; }
-  function rate(M,a,b){ if(!M) return null; var x=v(M,a), y=v(M,b); return y?Math.round(x/y*100):null; }
-  var h='<div class="tbl fit"><table><tr><th></th><th>'+esc(fair?monthName(sel,1)+' 1–'+MK.day:mkName(sel))+'</th><th>'+esc(mkCmpName(p))+'</th><th>Change</th><th>'+esc(mkCmpName(ly))+'</th><th>Change</th></tr>';
-  h+='<tr class="grp"><td colspan="6">The funnel</td></tr>';
+  var t=mkT(), sel=pSel(), fair=pFair(), cm=mkCmps();
+  function v(key,k){ return pVal(t,key,k,fair); }
+  function rate(key,a,b){ var x=v(key,a), y=v(key,b); return x===null||!y?null:Math.round(x/y*100); }
+  var cols=[sel].concat(cm.map(function(c){return c[0];}));
+  var h='<div class="tbl fit"><table><tr><th></th><th>'+esc(pLabel(t,sel))+'</th>';
+  cm.forEach(function(c){ h+='<th>'+esc(pLabel(t,c[0]))+'</th><th>Change</th>'; });
+  h+='</tr><tr class="grp"><td colspan="'+(2+cm.length*2)+'">The funnel</td></tr>';
   MKM.forEach(function(x){
-    var a=v(X,x[0]), b=v(P,x[0]), c=v(Y,x[0]), d1=mkDelta(a,b), d2=mkDelta(a,c);
-    h+='<tr><td style="--c:var(--c-'+x[0]+')"><span class="sw"></span>'+x[1]+'</td><td><b>'+a+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td class="'+d1.c+'">'+d1.t+'</td><td class="dim">'+(c===null?'—':c)+'</td><td class="'+d2.c+'">'+d2.t+'</td></tr>';
+    var a=v(sel,x[0]);
+    h+='<tr><td style="--c:var(--c-'+x[0]+')"><span class="sw"></span>'+x[1]+'</td><td><b>'+(a===null?'—':a)+'</b></td>';
+    cm.forEach(function(c){ var b=v(c[0],x[0]), d=mkDelta(a,b); h+='<td class="dim">'+(b===null?'—':b)+'</td><td class="'+d.c+'">'+d.t+'</td>'; });
+    h+='</tr>';
   });
-  h+='<tr class="grp"><td colspan="6">Per 100 inquiries in the same month</td></tr>';
+  h+='<tr class="grp"><td colspan="'+(2+cm.length*2)+'">Per 100 inquiries in the same period</td></tr>';
   [['call','Calls'],['sent','Contracts sent'],['booked','Booked']].forEach(function(r){
-    var a=rate(X,r[0],'new'), b=rate(P,r[0],'new'), c=rate(Y,r[0],'new'), d1=mkDelta(a,b), d2=mkDelta(a,c);
-    h+='<tr><td>'+r[1]+'</td><td><b>'+(a===null?'—':a)+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td class="'+d1.c+'">'+(a===null||b===null?'':d1.t.replace(/\s*\(.*\)/,''))+'</td><td class="dim">'+(c===null?'—':c)+'</td><td class="'+d2.c+'">'+(a===null||c===null?'':d2.t.replace(/\s*\(.*\)/,''))+'</td></tr>';
+    var a=rate(sel,r[0],'new');
+    h+='<tr><td>'+r[1]+'</td><td><b>'+(a===null?'—':a)+'</b></td>';
+    cm.forEach(function(c){ var b=rate(c[0],r[0],'new'), d=mkDelta(a,b); h+='<td class="dim">'+(b===null?'—':b)+'</td><td class="'+d.c+'">'+(a===null||b===null?'':d.t.replace(/\s*\(.*\)/,''))+'</td>'; });
+    h+='</tr>';
   });
-  var sr=function(M){ if(!M) return null; var x=M.n.sent, y=M.n.signed; return x?Math.round(y/x*100):null; };
-  (function(){ var a=sr(X), b=sr(P), c=sr(Y); h+='<tr><td>Signed per 100 contracts</td><td><b>'+(a===null?'—':a)+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td></td><td class="dim">'+(c===null?'—':c)+'</td><td></td></tr>'; })();
-  h+='<tr class="grp"><td colspan="6">Speed (middle bride of the month, whole month)</td></tr>';
-  [['toCall','Days from inquiry to call',true],['toBook','Days from inquiry to booking',true],['ahead','Months from inquiry to wedding',false]].forEach(function(r){
-    var a=X[r[0]], b=P?P[r[0]]:null, c=Y?Y[r[0]]:null;
-    var cls=function(o){ if(a===null||o===null||a===o) return ''; return (a<o)===r[2]?'up':'down'; };
-    h+='<tr><td>'+r[1]+'</td><td><b>'+(a===null?'—':a)+'</b></td><td class="dim">'+(b===null?'—':b)+'</td><td class="'+cls(b)+'">'+(a!==null&&b!==null?(a-b>0?'+':'')+(a-b):'')+'</td><td class="dim">'+(c===null?'—':c)+'</td><td class="'+cls(c)+'">'+(a!==null&&c!==null?(a-c>0?'+':'')+(a-c):'')+'</td></tr>';
-  });
+  (function(){ var a=rate(sel,'signed','sent'); h+='<tr><td>Signed per 100 contracts</td><td><b>'+(a===null?'—':a)+'</b></td>'; cm.forEach(function(c){ var b=rate(c[0],'signed','sent'); h+='<td class="dim">'+(b===null?'—':b)+'</td><td></td>'; }); h+='</tr>'; })();
+  if(t==='month'){
+    h+='<tr class="grp"><td colspan="'+(2+cm.length*2)+'">Speed (middle bride of the month, whole month)</td></tr>';
+    [['toCall','Days from inquiry to call',true],['toBook','Days from inquiry to booking',true],['ahead','Months from inquiry to wedding',false]].forEach(function(r){
+      var a=MK.m[sel][r[0]];
+      h+='<tr><td>'+r[1]+'</td><td><b>'+(a===null?'—':a)+'</b></td>';
+      cm.forEach(function(c){ var b=mkHas(c[0])?MK.m[c[0]][r[0]]:null, cls=(a===null||b===null||a===b)?'':((a<b)===r[2]?'up':'down');
+        h+='<td class="dim">'+(b===null?'—':b)+'</td><td class="'+cls+'">'+(a!==null&&b!==null?(a-b>0?'+':'')+(a-b):'')+'</td>'; });
+      h+='</tr>';
+    });
+  }
   return h+'</table></div>';
 }
 
-/* every month of the year next to the same month last year, with a year-to-date line at the bottom */
-function mkYearTable(){
-  var yr=S.mm.slice(0,4), cur=MK.cur, h='<div class="tbl"><table><tr><th>Month</th>';
-  MKM.forEach(function(x){ h+='<th style="color:var(--c-'+x[0]+')">'+x[1]+'</th><th>vs '+(+yr-1)+'</th>'; });
+/* the table for the chosen view: every month, every quarter or every year next to the same one a year before */
+function mkPeriodTable(){
+  var t=mkT(), yr=pSel().slice(0,4), keys=[];
+  if(t==='month'){ for(var i=1;i<=12;i++){ var m=yr+'-'+('0'+i).slice(-2); if(m<=MK.cur) keys.push(m); } }
+  else if(t==='quarter'){ for(var q=1;q<=4;q++){ var qk=yr+'-Q'+q; if(pMonths('quarter',qk)[0]<=MK.cur) keys.push(qk); } }
+  else { for(var y=2025;y<=+MK.cur.slice(0,4);y++) keys.push(String(y)); }
+  function inProg(key){ return pMonths(t,key).indexOf(MK.cur)>=0; }
+  function val(key,k,fairTo){ /* fairTo: the period whose progress sets the cut-off */
+    var ms=pMonths(t,key), idx=fairTo?pMonths(t,fairTo).indexOf(MK.cur):-1, s=0;
+    if(idx>=0) ms=ms.slice(0,idx+1);
+    for(var i=0;i<ms.length;i++){ if(ms[i]>MK.cur) break; var v=mkV(ms[i],k,idx>=0&&i===idx); if(v===null) return null; s+=v; } return s; }
+  var before=t==='year'?function(k){ return String(+k-1); }:function(k){ return pLY(t,k); };
+  var h='<div class="tbl"><table><tr><th>'+(t==='month'?'Month':t==='quarter'?'Quarter':'Year')+'</th>';
+  MKM.forEach(function(x){ h+='<th style="color:var(--c-'+x[0]+')">'+x[1]+'</th><th>Change</th>'; });
+  if(t==='quarter') h+='<th>Booked vs quarter before</th>';
   h+='</tr>';
   var ta={}, tb={}; MKM.forEach(function(x){ ta[x[0]]=0; tb[x[0]]=null; });
-  for(var i=1;i<=12;i++){
-    var m=yr+'-'+('0'+i).slice(-2); if(m>cur) break;
-    var part=MK.m[m]&&MK.m[m].partial;
-    h+='<tr'+(m===S.mm?' class="sel"':'')+'><td>'+monthName(m)+(part?' <span class="dim">(1–'+MK.day+')</span>':'')+'</td>';
+  keys.forEach(function(key){
+    var part=inProg(key), fk=part?key:null;
+    h+='<tr'+(key===pSel()?' class="sel"':'')+'><td>'+esc(t==='month'?monthName(key):t==='quarter'?pName(t,key):key)+(part?' <span class="dim">(to '+monthName(MK.cur,1)+' '+MK.day+')</span>':'')+'</td>';
     MKM.forEach(function(x){
-      var a=mkV(m,x[0],part), b=mkV(mkLY(m),x[0],part), d=mkDelta(a,b,true);
+      var a=val(key,x[0],fk), b=val(before(key),x[0],fk), d=mkDelta(a,b,true);
       if(a!==null) ta[x[0]]+=a; if(b!==null) tb[x[0]]=(tb[x[0]]||0)+b;
       h+='<td><b>'+(a===null?'—':a)+'</b> <span class="dim">/ '+(b===null?'—':b)+'</span></td><td class="'+d.c+'">'+(b===null?'':d.t)+'</td>';
     });
+    if(t==='quarter'){ var pk=pPrev('quarter',key), d2=mkDelta(val(key,'booked',fk),val(pk,'booked',fk),true); h+='<td class="'+d2.c+'">'+(val(pk,'booked',fk)===null?'—':d2.t)+'</td>'; }
+    h+='</tr>';
+  });
+  if(t!=='year'){
+    h+='<tr class="sel"><td><b>Year so far</b></td>';
+    MKM.forEach(function(x){ var d=mkDelta(ta[x[0]],tb[x[0]],true); h+='<td><b>'+ta[x[0]]+'</b> <span class="dim">/ '+(tb[x[0]]===null?'—':tb[x[0]])+'</span></td><td class="'+d.c+'">'+(tb[x[0]]===null?'':d.t)+'</td>'; });
+    if(t==='quarter') h+='<td></td>';
     h+='</tr>';
   }
-  h+='<tr class="sel"><td><b>Year so far</b></td>';
-  MKM.forEach(function(x){ var d=mkDelta(ta[x[0]],tb[x[0]],true); h+='<td><b>'+ta[x[0]]+'</b> <span class="dim">/ '+(tb[x[0]]===null?'—':tb[x[0]])+'</span></td><td class="'+d.c+'">'+(tb[x[0]]===null?'':d.t)+'</td>'; });
-  return h+'</tr></table></div>';
+  return h+'</table></div>';
+}
+
+/* ---------- seasons ---------- */
+function mkBand(vals){ /* peak / slow months against the average of the months that have data */
+  var have=vals.filter(function(v){return v!==null;}), avg=have.reduce(function(s,v){return s+v;},0)/(have.length||1);
+  return vals.map(function(v){ return v===null||!avg?'':v>=avg*1.15?'peak':v<=avg*0.85?'slow':''; });
+}
+function mkBandRow(band,x0,cw,y){
+  var h='';
+  band.forEach(function(b,i){ if(!b) return; h+='<rect x="'+(x0+i*cw+3)+'" y="'+y+'" width="'+(cw-6)+'" height="8" rx="4" fill="'+(b==='peak'?'var(--c-booked)':'var(--down)')+'" opacity="'+(b==='peak'?.85:.55)+'"><title>'+(b==='peak'?'Busy month':'Slow month')+'</title></rect>'; });
+  return h;
+}
+function mkNames(band,want){ var o=[]; band.forEach(function(b,i){ if(b===want) o.push(MSH[i]); }); return o.length?o.join(', '):'none'; }
+/* when bookings (or inquiries) come in: one line per year, and the average of the full months behind the busy/slow band */
+function mkBookingSeason(){
+  var k=S.sbm||'booked', col='var(--c-'+k+')', years=[], y0=2025, y1=+MK.cur.slice(0,4);
+  for(var y=y0;y<=y1;y++) years.push(y);
+  var series=years.map(function(y){ return MSH.map(function(_,i){ var m=y+'-'+('0'+(i+1)).slice(-2); if(m>MK.cur||!mkHas(m)) return null; return mkV(m,k,false); }); });
+  var avg=MSH.map(function(_,i){ var s=0,n=0; years.forEach(function(y,j){ var m=y+'-'+('0'+(i+1)).slice(-2); if(m<MK.cur&&series[j][i]!==null){ s+=series[j][i]; n++; } }); return n?Math.round(s/n):null; });
+  var band=mkBand(avg), max=Math.max.apply(null,[].concat.apply([],series).concat(avg).map(function(v){return v||0;}).concat([1]));
+  var W=760, H=190, L=34, cw=(W-L)/12, top=14, h='<svg viewBox="0 0 '+W+' '+(H+58)+'" role="img" aria-label="Booking season">';
+  [0,.5,1].forEach(function(f){ var yy=top+H-Math.round(H*f); h+='<line x1="'+L+'" x2="'+W+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(yy+4)+'" text-anchor="end">'+Math.round(max*f)+'</text>'; });
+  function px(i){ return L+i*cw+cw/2; } function py(v){ return top+H-Math.round(H*v/max); }
+  series.forEach(function(s,j){
+    var last=j===series.length-1, d='', pts='';
+    s.forEach(function(v,i){ if(v===null) return; d+=(d?'L':'M')+px(i)+' '+py(v); pts+='<circle cx="'+px(i)+'" cy="'+py(v)+'" r="'+(last?4:3)+'" fill="'+col+'" opacity="'+(last?1:.45)+'"><title>'+esc(MSH[i]+' '+years[j]+': '+v)+'</title></circle>'; });
+    h+='<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="'+(last?3:2)+'" opacity="'+(last?1:.45)+'"/>'+pts;
+    var li=-1; s.forEach(function(v,i){ if(v!==null) li=i; }); if(li>=0) h+='<text x="'+(px(li)+7)+'" y="'+(py(s[li])+4)+'" class="v" style="font-size:11px">'+years[j]+'</text>';
+  });
+  MSH.forEach(function(n,i){ h+='<text x="'+px(i)+'" y="'+(top+H+18)+'" text-anchor="middle">'+n+'</text>'; });
+  h+=mkBandRow(band,L,cw,top+H+28);
+  h+='<text x="'+L+'" y="'+(top+H+54)+'" style="font-size:11px">Band under the months: green = busy, red = slow (against the monthly average of the full months).</text>';
+  return { svg:h+'</svg>', peak:mkNames(band,'peak'), slow:mkNames(band,'slow') };
+}
+/* when they get married: weddings on the calendar (master) per month */
+function mkWeddingSeason(){
+  var W0=MK.seasons&&MK.seasons.wed||{}, ys={};
+  Object.keys(W0).forEach(function(k){ ys[k.slice(0,4)]=1; });
+  var years=Object.keys(ys).sort(), cy=+MK.cur.slice(0,4);
+  var full=years.filter(function(y){ return +y<=cy; }), base=full.length?full[full.length-1]:years[0];
+  if(!base) return null;
+  var vals=function(y){ return MSH.map(function(_,i){ return W0[y+'-'+('0'+(i+1)).slice(-2)]||0; }); };
+  var bv=vals(base), band=mkBand(bv), max=1; years.forEach(function(y){ vals(y).forEach(function(v){ max=Math.max(max,v); }); });
+  var W=760, H=190, L=34, cw=(W-L)/12, top=14, n=years.length, h='<svg viewBox="0 0 '+W+' '+(H+58)+'" role="img" aria-label="Wedding season">';
+  [0,.5,1].forEach(function(f){ var yy=top+H-Math.round(H*f); h+='<line x1="'+L+'" x2="'+W+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(yy+4)+'" text-anchor="end">'+Math.round(max*f)+'</text>'; });
+  MSH.forEach(function(m,i){
+    var x=L+i*cw, bw=(cw-10)/n;
+    years.forEach(function(y,j){ var v=vals(y)[i], hh=Math.round(H*v/max), on=y===base;
+      h+='<rect x="'+(x+5+j*bw)+'" y="'+(top+H-hh)+'" width="'+(bw-2)+'" height="'+hh+'" rx="3" fill="var(--c-signed)" opacity="'+(on?1:+y>cy?.35:.55)+'"><title>'+esc(m+' '+y+': '+v+' weddings'+(+y>cy?' (booked so far)':''))+'</title></rect>';
+      if(on&&v) h+='<text x="'+(x+5+j*bw+(bw-2)/2)+'" y="'+(top+H-hh-5)+'" text-anchor="middle" class="v" style="font-size:11px">'+v+'</text>'; });
+    h+='<text x="'+(x+cw/2)+'" y="'+(top+H+18)+'" text-anchor="middle">'+m+'</text>';
+  });
+  h+=mkBandRow(band,L,cw,top+H+28);
+  h+='<text x="'+L+'" y="'+(top+H+54)+'" style="font-size:11px">Bright bars = '+base+' (the band is based on it). '+years.filter(function(y){return y!==base;}).map(function(y){ return y+(+y>cy?' = booked so far':''); }).join(' · ')+'</text>';
+  return { svg:h+'</svg>', peak:mkNames(band,'peak'), slow:mkNames(band,'slow'), base:base, years:years };
+}
+/* when each wedding month books: rows = wedding month, columns = the month the deposit was paid */
+function mkHeat(){
+  var se=MK.seasons||{}, mat=se.mat||[], med=se.leadMed||[];
+  if(!se.pairs) return '';
+  var W=760, L=46, R=96, cw=(W-L-R)/12, RH=26, top=22, h='<svg viewBox="0 0 '+W+' '+(top+RH*12+8)+'" role="img" aria-label="When each wedding month books">';
+  MSH.forEach(function(m,i){ h+='<text x="'+(L+i*cw+cw/2)+'" y="14" text-anchor="middle">'+m+'</text>'; });
+  h+='<text x="'+(W-R+8)+'" y="14">Books ahead</text>';
+  mat.forEach(function(row,w){
+    var y=top+w*RH, mx=Math.max.apply(null,row.concat([1])), tot=row.reduce(function(s,v){return s+v;},0);
+    h+='<text x="0" y="'+(y+17)+'" class="v">'+MSH[w]+'</text>';
+    row.forEach(function(v,b){
+      var a=v?.12+.88*v/mx:0;
+      h+='<rect x="'+(L+b*cw+1)+'" y="'+(y+1)+'" width="'+(cw-2)+'" height="'+(RH-2)+'" rx="4" fill="'+(v?'var(--c-booked)':'var(--field)')+'" opacity="'+(v?a.toFixed(2):1)+'"><title>'+esc(MSH[w]+' weddings booked in '+MSH[b]+': '+v+(tot?' ('+Math.round(v/tot*100)+'%)':''))+'</title></rect>';
+      if(v) h+='<text x="'+(L+b*cw+cw/2)+'" y="'+(y+17)+'" text-anchor="middle" style="font-size:11px;fill:'+(a>.55?'#0E1A10':'var(--ink)')+'">'+v+'</text>';
+    });
+    h+='<text x="'+(W-R+8)+'" y="'+(y+17)+'" class="v">'+(med[w]===null||med[w]===undefined?'—':'~'+med[w]+' mo')+'</text>';
+  });
+  return h+'</svg>';
+}
+function mkHeatSummary(){
+  var mat=(MK.seasons||{}).mat||[], med=(MK.seasons||{}).leadMed||[], out=[];
+  mat.forEach(function(row,w){ var tot=row.reduce(function(s,v){return s+v;},0); if(tot<6) return;
+    var top=row.map(function(v,b){return [v,b];}).sort(function(a,b){return b[0]-a[0];}).slice(0,3).filter(function(x){return x[0];}).map(function(x){return MSH[x[1]];});
+    out.push({w:w,tot:tot,top:top,med:med[w]}); });
+  out.sort(function(a,b){ return b.tot-a.tot; });
+  return out.slice(0,5).map(function(x){ return '<li><b>'+MSH[x.w]+' weddings</b> mostly book in '+x.top.join(', ')+(x.med!==null&&x.med!==undefined?' · about '+x.med+' months ahead':'')+' <span class="dim">('+x.tot+' bookings)</span></li>'; }).join('');
+}
+function mkLeadHist(){
+  var hs=(MK.seasons||{}).leadHist||[], tot=hs.reduce(function(s,v){return s+v;},0)||1, lab=['under 3 mo','3–6 mo','6–9 mo','9–12 mo','12–18 mo','18+ mo'], max=Math.max.apply(null,hs.concat([1]));
+  var W=520, RH=30, h='<svg viewBox="0 0 '+W+' '+(RH*6+4)+'" role="img" aria-label="How far ahead couples book">';
+  hs.forEach(function(v,i){ var y=i*RH, w=Math.round(300*v/max); h+='<text x="0" y="'+(y+19)+'" class="v">'+lab[i]+'</text><rect x="110" y="'+(y+7)+'" width="'+Math.max(v?3:0,w)+'" height="14" rx="4" fill="var(--c-call)"/><text x="'+(118+w)+'" y="'+(y+19)+'">'+v+' · '+Math.round(v/tot*100)+'%</text>'; });
+  return h+'</svg>';
 }
 
 function renderMarketing(){
-  var d=S.data, h='<header><div><h1>Marketing <span class="ver">alpha</span></h1><div class="sub">Only you see this · today '+esc(d.today)+(MK&&MK.updated?' · emails read '+esc(MK.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM</div></div>'+
+  var d=S.data, h='<header><div><h1>Marketing <span class="ver">alpha 2</span></h1><div class="sub">Only you see this · today '+esc(d.today)+(MK&&MK.updated?' · emails read '+esc(MK.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM</div></div>'+
     '<div class="row" style="margin:0">'+viewSwitch()+'<button class="chip" onclick="MK=null;loadMkt();renderMarketing()">Refresh</button></div></header>';
   if(!MK){
     h+=MKERR?'<div class="warn-box">Marketing could not load: '+esc(MKERR)+' <button class="chip" onclick="loadMkt();renderMarketing()">Try again</button></div>':'<p class="sub">Loading the numbers…</p>';
     document.getElementById('app').innerHTML=h; if(!MKERR) loadMkt(); return;
   }
-  var sel=S.mm, fair=mkFair(), p=mkPrev(sel), ly=mkLY(sel);
+  var t=mkT(), sel=pSel(), fair=pFair(), cm=mkCmps();
   h+='<div class="mk">';
-  h+='<div class="ctl"><select onchange="S.mm=this.value;renderMarketing()" aria-label="Month">'+MK.months.slice().reverse().filter(function(m){return mkHas(m);}).map(function(m){ return '<option value="'+m+'"'+(m===sel?' selected':'')+'>'+mkName(m)+(MK.m[m].partial?' (so far)':'')+'</option>'; }).join('')+'</select>'+
-     '<span class="sub">'+(fair?'Month in progress: every comparison uses day 1 to '+MK.day+' of that month, so it is fair.':'Whole months compared.')+'</span></div>';
+  /* period switch + period picker */
+  var opts=[], seen={};
+  MK.months.slice().reverse().filter(function(m){return mkHas(m);}).forEach(function(m){
+    var key=t==='month'?m:t==='quarter'?qOf(m):m.slice(0,4); if(seen[key]) return; seen[key]=1;
+    var cur=pMonths(t,key).indexOf(MK.cur)>=0;
+    var inside=pMonths(t,key).filter(function(x){ return x<=MK.cur; });
+    opts.push('<option value="'+inside[inside.length-1]+'"'+(key===sel?' selected':'')+'>'+esc(pName(t,key))+(cur?' (so far)':'')+'</option>');
+  });
+  h+='<div class="ctl"><span class="views" role="tablist">'+[['month','Month'],['quarter','Quarter'],['year','Year']].map(function(x){ return '<button role="tab" aria-selected="'+(t===x[0])+'" class="'+(t===x[0]?'on':'')+'" onclick="S.mp=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</span>'+
+     '<select onchange="S.mm=this.value;renderMarketing()" aria-label="Period">'+opts.join('')+'</select>'+
+     '<span class="sub">'+(fair?'In progress: every comparison stops at the same point ('+esc(monthName(MK.cur,1))+' '+MK.day+'), so it is fair.':'Whole periods compared.')+'</span></div>';
   if(!(MK.history&&MK.history.rows)) h+='<div class="warn-box">Last year is still loading from your emails. The “last year” columns fill in by themselves when it finishes.</div>';
   h+='<div class="kpis">'+MKM.map(function(x){
-    var a=mkV(sel,x[0],false);
-    return '<div class="kpi" style="--c:var(--c-'+x[0]+')"><div class="k">'+x[1]+'</div><div class="v">'+a+'</div><div class="chips">'+
-      mkChip(mkCmpName(p,1),mkV(sel,x[0],fair),mkV(p,x[0],fair))+mkChip(mkCmpName(ly,1),mkV(sel,x[0],fair),mkV(ly,x[0],fair))+'</div>'+mkSpark(x[0])+'</div>';
+    var a=pVal(t,sel,x[0],fair);
+    return '<div class="kpi" style="--c:var(--c-'+x[0]+')"><div class="k">'+x[1]+'</div><div class="v">'+(a===null?'—':a)+'</div><div class="chips">'+
+      cm.map(function(c){ return mkChip(pLabel(t,c[0]),a,pVal(t,c[0],x[0],fair)); }).join('')+'</div>'+mkSpark(x[0])+'</div>';
   }).join('')+'</div>';
-  h+='<div class="grid2 wide"><section class="sec"><h2>The funnel · '+esc(mkName(sel))+'</h2><p class="lede">Solid = '+esc(monthName(sel))+(fair?' so far':'')+'. Dashed outline = '+esc(mkCmpName(ly))+'.</p>'+mkFunnel()+'</section>'+
-     '<section class="sec"><h2>This month against the others</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same month.</p>'+mkCompareTable()+'</section></div>';
-  h+='<section class="sec"><h2>'+esc((MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1])+' by month · '+sel.slice(0,4)+' against '+(+sel.slice(0,4)-1)+'</h2>'+
-     '<div class="legend"><span><i style="background:var(--c-'+(S.mmet||'new')+')"></i>'+sel.slice(0,4)+'</span><span><i style="background:var(--c-'+(S.mmet||'new')+');opacity:.32"></i>'+(+sel.slice(0,4)-1)+'</span><span>Dashed bar = month in progress</span></div>'+
+  h+='<div class="grid2 wide"><section class="sec"><h2>The funnel · '+esc(pName(t,sel))+'</h2><p class="lede">Solid = '+esc(pLabel(t,sel))+'. Dashed outline = '+esc(pLabel(t,pLY(t,sel)))+'.</p>'+mkFunnel()+'</section>'+
+     '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
+  var mlabel=(MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1], yr=sel.slice(0,4);
+  h+='<section class="sec"><h2>'+esc(mlabel)+' by '+(t==='month'?'month':t==='quarter'?'quarter':'year')+(t==='year'?'':' · '+yr+' against '+(+yr-1))+'</h2>'+
+     '<div class="legend">'+(t==='year'?'<span>Bars = each year (dashed = so far)</span><span>White line = last year by the same day</span>':'<span><i style="background:var(--c-'+(S.mmet||'new')+')"></i>'+yr+'</span><span><i style="background:var(--c-'+(S.mmet||'new')+');opacity:.32"></i>'+(+yr-1)+'</span><span>Dashed = in progress · white line = last year by the same day</span>')+'</div>'+
      '<div class="ctl" style="margin-bottom:8px">'+MKM.map(function(x){ return '<button class="chip'+((S.mmet||'new')===x[0]?' on':'')+'" onclick="S.mmet=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>'+mkTrend()+'</section>';
+  h+='<section class="sec"><h2>'+(t==='month'?'Month by month':t==='quarter'?'Quarter by quarter':'Year by year')+(t==='year'?'':' · '+yr+' / '+(+yr-1))+'</h2><p class="lede">Each cell: '+(t==='year'?'that year / the year before':'this year / the same '+(t==='month'?'month':'quarter')+' a year before')+', then the change.'+(t==='quarter'?' Last column: bookings against the quarter before.':'')+'</p>'+mkPeriodTable()+'</section>';
   var src=mkSources();
-  h+='<section class="sec"><h2>Where inquiries come from · '+esc(mkName(sel))+'</h2><p class="lede">From “How did you hear about us?” on the inquiry form. Blue = inquiries, green line = booked, dashed outline = same month last year.</p>'+
-     (src.empty?'<p class="sub">No inquiries with a source this month yet.</p>':'<div class="grid2"><div>'+src.chart+'</div><div>'+src.table+'</div></div>')+'</section>';
-  h+='<section class="sec"><h2>Month by month · '+sel.slice(0,4)+' / '+(+sel.slice(0,4)-1)+'</h2><p class="lede">Each cell: this year / the same month last year, then the change.</p>'+mkYearTable()+'</section>';
-  h+='<p class="note">How it is counted: Inquiries = website forms plus consultation calls booked without a form · Calls = Calendly consultation calls · Contracts = first contract emailed · Signed = Dubsado signature · Booked = deposit paid (the Sales Board date wins). Each one counts in the month it happened. Test entries and rows marked IGNORE are left out. '+
-     (MK.history&&MK.history.rows?'Last year: '+MK.history.rows+' brides from your emails, October 2024 to December 2025.':'')+'</p>';
+  h+='<section class="sec"><h2>Where inquiries come from · '+esc(pName(t,sel))+'</h2><p class="lede">From “How did you hear about us?” on the inquiry form. Blue = inquiries, green line = booked, dashed outline = same period last year.</p>'+
+     (src.empty?'<p class="sub">No inquiries with a source in this period yet.</p>':'<div class="grid2 wide"><div>'+src.chart+'</div><div>'+src.table+'</div></div>')+'</section>';
+  /* seasons */
+  var bs=mkBookingSeason(), ws=mkWeddingSeason(), se=MK.seasons||{};
+  h+='<h2 class="mkh">Seasons</h2>';
+  h+='<section class="sec"><h2>Booking season · when '+((S.sbm||'booked')==='booked'?'bookings':'inquiries')+' come in</h2>'+
+     '<div class="ctl" style="margin-bottom:8px">'+[['booked','Bookings'],['new','Inquiries']].map(function(x){ return '<button class="chip'+((S.sbm||'booked')===x[0]?' on':'')+'" onclick="S.sbm=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>'+
+     '<div class="season"><span class="pk">Busy: <b>'+esc(bs.peak)+'</b></span><span class="sl">Slow: <b>'+esc(bs.slow)+'</b></span></div>'+bs.svg+'</section>';
+  if(ws) h+='<section class="sec"><h2>Wedding season · when couples get married</h2><p class="lede">Weddings on your calendar (the master), by month.</p>'+
+     '<div class="season"><span class="pk">Busy: <b>'+esc(ws.peak)+'</b></span><span class="sl">Slow: <b>'+esc(ws.slow)+'</b></span></div>'+ws.svg+'</section>';
+  if(se.pairs){
+    h+='<div class="grid2 wide"><section class="sec"><h2>How far ahead they book</h2><p class="lede">Months between the deposit and the wedding, '+se.pairs+' bookings since January 2025.</p>'+mkLeadHist()+'</section>'+
+       '<section class="sec"><h2>When each wedding month books</h2><p class="lede">Read across a row: the months in which those couples paid their deposit. Darker = more of that row. Hover a square for the number.</p>'+mkHeat()+
+       '<ul class="mklist">'+mkHeatSummary()+'</ul></section></div>';
+  }
+  h+='<p class="note">How it is counted: Inquiries = website forms plus consultation calls booked without a form · Calls = Calendly consultation calls · Contracts = first contract emailed · Signed = Dubsado signature · Booked = deposit paid (the Sales Board date wins). Each one counts in the month it happened. Quarters and years add up their months. Wedding dates come from the contract on the Sales Board, otherwise from the inquiry form. Test entries and rows marked IGNORE are left out. '+
+     (MK.history&&MK.history.rows?'Last year: '+MK.history.rows+' brides from your emails, October 2024 to December 2025 (bookings from emails only, so they can be 1–2 off per month).':'')+'</p>';
   h+='</div>';
   document.getElementById('app').innerHTML=h;
 }
