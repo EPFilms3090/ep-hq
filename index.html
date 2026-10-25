@@ -140,6 +140,51 @@
   .ck.ro{cursor:default}
   #modal .checklist .ck{font-size:17px;padding:10px 12px}
   #modal .checklist{overflow:auto;max-height:70vh}
+  /* ---------- one video type across all weddings (Teaser / Highlight / Documentary) ---------- */
+  .vtabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .vtab{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;text-align:left;font:inherit;color:inherit;display:grid;gap:6px;min-width:0}
+  .vtab.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .vtab .vname{font-family:var(--serif);font-size:21px;line-height:1.1}
+  .vtab .vcount{display:flex;flex-wrap:wrap;gap:6px}
+  .vtab .vcount b,.vsum button{font-weight:500;font-size:12px;border-radius:6px;padding:3px 8px;border:1px solid}
+  .vtab b.l,.vsum .l{color:var(--bad-fg);background:var(--bad-bg);border-color:var(--bad-bd)}
+  .vtab b.s,.vsum .s{color:var(--due-fg);background:var(--due-bg);border-color:var(--due-bd)}
+  .vtab b.d,.vsum .d{color:var(--ok-fg);background:var(--ok-bg);border-color:var(--ok-bd)}
+  .vtab b.z,.vsum .o{color:var(--wait-fg);background:var(--wait-bg);border-color:var(--wait-bd)}
+  .vsum{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .vsum button{font-size:13px;padding:6px 12px;cursor:pointer;font-family:var(--sans)}
+  .vsum button.on{box-shadow:0 0 0 2px var(--ink)}
+  .vgroup{background:var(--lane);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .vgroup h2,.vgroup summary{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cocoa);margin:2px 2px 8px;font-weight:600;cursor:default}
+  .vgroup summary{cursor:pointer;margin-bottom:0} .vgroup[open] summary{margin-bottom:8px}
+  .vgroup.late{border-color:var(--bad-bd)} .vgroup.late h2{color:var(--bad-fg)}
+  .vgroup.soon{border-color:var(--due-bd)} .vgroup.soon h2{color:var(--due-fg)}
+  .vgroup.done summary{color:var(--ok-fg)}
+  .vt{overflow-x:auto}
+  .vt table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px;table-layout:fixed}
+  .vt th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);font-weight:500;white-space:nowrap}
+  .vt td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .vt tr:last-child td{border-bottom:0}
+  .vt tbody tr{cursor:pointer} .vt tbody tr:hover td{background:var(--card)}
+  .vt .cp{font-family:var(--serif);font-size:16px} .vt .mt{color:var(--muted);font-size:12px}
+  .wk{display:inline-block;min-width:64px;text-align:center;font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 10px;border:1px solid}
+  .wk.late{color:var(--bad-fg);background:var(--bad-bg);border-color:var(--bad-bd)}
+  .wk.soon{color:var(--due-fg);background:var(--due-bg);border-color:var(--due-bd)}
+  .wk.ok{color:var(--wait-fg);background:var(--wait-bg);border-color:var(--wait-bd)}
+  .wk.done{color:var(--ok-fg);background:var(--ok-bg);border-color:var(--ok-bd)}
+  .vt .st{font-weight:600} .vt .st.late{color:var(--bad-fg)} .vt .st.soon{color:var(--due-fg)} .vt .st.done{color:var(--ok-fg)}
+  .vt .xtra{color:var(--muted);font-size:12.5px}
+  @media (max-width:640px){
+    .vtabs{grid-template-columns:minmax(0,1fr)}
+    .vt table{min-width:0;table-layout:auto} .vt colgroup,.vt thead{display:none} .vt table,.vt tbody{display:block}
+    .vt tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 2px;border-bottom:1px solid var(--line)}
+    .vt tbody tr:last-child{border-bottom:0}
+    .vt td{display:block;padding:0;border:0}
+    .vt td:nth-child(2){grid-column:2;grid-row:1;text-align:right}
+    .vt td:nth-child(3),.vt td:nth-child(4){font-size:12.5px;color:var(--muted)}
+    .vt td:nth-child(3)::before{content:'Editor: '} .vt td:nth-child(4){text-align:right} .vt td:nth-child(4)::before{content:'Due '}
+    .vt td:nth-child(5){grid-column:1 / -1}
+  }
   /* ---------- Marketing (Rafael only) ---------- */
   .mk{--c-new:#8EC5FF;--c-call:#B9A6FF;--c-sent:#F0CF85;--c-signed:#F5A97F;--c-booked:#8CF5A8;--up:#8CF5A8;--down:#FF9A8B;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
   .mk .sec{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-width:0}
@@ -378,11 +423,96 @@ function renderBoard(){
       '<div class="bar"><i style="width:'+w(lt)+';background:var(--bar-late)"></i><i style="width:'+w(due)+';background:var(--bar-due)"></i><i style="width:'+w(n-lt-due)+';background:var(--taupe)"></i></div>'+
       (d.links&&d.links[e]?'<button class="btn ghost small" onclick="copyLink(\''+e+'\')">Copy '+e+'’s link</button>':'')+'</div>';
   }).join('')+'</div>';
+  h+=vtButtons();
   h+='<div class="tools"><input type="search" placeholder="Search a couple" value="'+esc(S.q)+'" oninput="S.q=this.value;renderLanes()">'+
     ['all','late'].concat(EDS).map(function(f){return '<button class="chip'+(S.filter===f?' on':'')+'" onclick="setFilter(\''+f+'\')">'+(f==='all'?'All':f==='late'?'Late':f)+'</button>';}).join('')+'</div>';
-  h+='<div id="donefold"></div><div class="board four" id="lanes"></div>';
+  h+=S.vt?'<div id="vtrack"></div>':'<div id="donefold"></div><div class="board four" id="lanes"></div>';
   document.getElementById('app').innerHTML=h;
   renderLanes();
+}
+
+/* ---------------------------------------------------- one video across every wedding: delivered, about to be late, late.
+   The week is counted from the wedding day: days 1-7 = week 1, 8-14 = week 2 ... (for a delivered video: the week it was delivered).
+   "About to be late" = due in the next 4 days (Teaser) or 7 days (Highlight, Documentary) — the same windows as the board. */
+var VT=[['teaser','Teaser'],['hl','Highlight'],['doc','Documentary']];
+function usIso(us){ var p=String(us||'').split('/'); return p.length===3&&p[2].length===4?p[2]+'-'+p[0]+'-'+p[1]:''; }
+function dBetween(a,b){ return Math.round((Date.parse(b+'T12:00:00Z')-Date.parse(a+'T12:00:00Z'))/864e5); }
+function weekOf(days){ return Math.max(1,Math.ceil(days/7)); }
+function vtSoon(type){ return type==='teaser'?4:7; }
+function vtRows(type){
+  var t=todayIso(), out=[];
+  S.data.cards.forEach(function(c){
+    if(!c.matched || !c.iso || c.daysSince<0) return;            // only weddings that already happened
+    c.videos.forEach(function(v){
+      if(v.type!==type) return;
+      var r={c:c,v:v}, dueIso=usIso(v.due);
+      if(v.done){
+        var di=usIso(v.done);
+        r.kind='done'; r.days=di?dBetween(c.iso,di):c.daysSince; r.lateBy=di&&dueIso?dBetween(dueIso,di):0; r.sort=di||'';
+      } else {
+        r.left=dueIso?dBetween(t,dueIso):0; r.days=c.daysSince;
+        r.kind=r.left<0?'late':r.left<=vtSoon(type)?'soon':'ok'; r.sort=dueIso;
+      }
+      r.week=weekOf(r.days);
+      out.push(r);
+    });
+  });
+  return out;
+}
+function vtSet(t){ S.vt=S.vt===t?'':t; S.vk=''; render(); }
+function vtButtons(){
+  return '<div class="vtabs">'+VT.map(function(x){
+    var r=vtRows(x[0]), n=function(k){ return r.filter(function(y){return y.kind===k;}).length; }, lt=n('late'), so=n('soon');
+    return '<button class="vtab'+(S.vt===x[0]?' on':'')+'" onclick="vtSet(\''+x[0]+'\')" aria-pressed="'+(S.vt===x[0])+'"><span class="vname">'+x[1]+'</span><span class="vcount">'+
+      '<b class="'+(lt?'l':'z')+'">'+lt+' late</b><b class="'+(so?'s':'z')+'">'+so+' about to be late</b><b class="d">'+n('done')+' delivered</b></span></button>';
+  }).join('')+'</div>';
+}
+function vtStatus(r){
+  var v=r.v, c=r.c, s='', x=[];
+  if(r.kind==='done'){
+    s='Delivered '+esc(v.done)+(r.lateBy>0?' · '+r.lateBy+(r.lateBy===1?' day':' days')+' late':' · on time');
+    if(c.revOpen===v.type) x.push('In revision');
+    x.push(v.sent?'Sent to the couple '+esc(v.sent):v.up?'On MediaZilla, not sent yet':'Waiting for upload to MediaZilla');
+  } else {
+    s=r.kind==='late'?(-r.left)+(r.left===-1?' day':' days')+' late':r.left===0?'Due today':'Due in '+r.left+(r.left===1?' day':' days');
+    if(!c.footage) x.push('No footage yet'); else if(!v.given) x.push('Not handed to '+esc(v.editor)+' yet');
+  }
+  return '<div class="st '+r.kind+'">'+s+'</div>'+(x.length?'<div class="xtra">'+x.join(' · ')+'</div>':'');
+}
+function vtTable(rows,doneCol){
+  return '<div class="vt"><table><colgroup><col style="width:29%"><col style="width:14%"><col style="width:13%"><col style="width:13%"><col style="width:31%"></colgroup><thead><tr><th>Couple</th><th>'+(doneCol?'Delivered in':'Now in')+'</th><th>Editor</th><th>Due</th><th>Status</th></tr></thead><tbody>'+
+    rows.map(function(r){
+      return '<tr onclick="vtOpen(\''+encodeURIComponent(r.c.couple).replace(/'/g,'%27')+'\')" title="Show this wedding on the board"><td><div class="cp">'+esc(r.c.couple)+'</div><div class="mt">Wedding '+esc(r.c.date)+(r.c.pkg?' · '+esc(r.c.pkg):'')+'</div></td>'+
+        '<td><span class="wk '+r.kind+'">Week '+r.week+'</span><div class="mt">'+(r.days===0?'wedding day':r.days+(r.days===1?' day':' days')+' after')+'</div></td>'+
+        '<td>'+esc(r.v.editor==='ASK'?'Not chosen yet':r.v.editor||'—')+'</td><td>'+esc(r.v.due)+'</td><td>'+vtStatus(r)+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
+function vtOpen(couple){ S.vt=''; S.vk=''; S.filter='all'; S.q=decodeURIComponent(couple); render(); }
+function vtKind(k){ S.vk=S.vk===k?'':k; renderVT(); }
+function renderVT(){
+  var box=document.getElementById('vtrack'); if(!box) return;
+  var type=S.vt, name=VT.filter(function(x){return x[0]===type;})[0][1], q=S.q.trim().toLowerCase(), ed=EDS.indexOf(S.filter)>=0?S.filter:'';
+  var rows=vtRows(type).filter(function(r){
+    if(q && r.c.couple.toLowerCase().indexOf(q)<0) return false;
+    if(ed && r.v.editor!==ed) return false;
+    if(S.filter==='late' && r.kind!=='late') return false;
+    return true;
+  });
+  function of(k){ return rows.filter(function(r){return r.kind===k;}); }
+  var done=of('done').sort(function(a,b){ return a.sort<b.sort?1:a.sort>b.sort?-1:0; }),
+      late=of('late').sort(function(a,b){ return a.left-b.left; }), soon=of('soon').sort(function(a,b){ return a.left-b.left; }), ok=of('ok').sort(function(a,b){ return a.left-b.left; });
+  var k=S.vk||'', show=function(x){ return !k||k===x; };
+  var h='<div class="vsum">'+[['late','l',late.length+' late'],['soon','s',soon.length+' about to be late'],['ok','o',ok.length+' on track'],['done','d',done.length+' delivered']].map(function(x){
+      return '<button class="'+x[1]+(k===x[0]?' on':'')+'" onclick="vtKind(\''+x[0]+'\')">'+x[2]+'</button>'; }).join('')+
+    '<button class="chip" onclick="vtSet(\'\')">Back to the board</button></div>'+
+    '<div class="sub" style="margin:-4px 0 12px">'+esc(name)+' for every wedding that already happened'+(ed?' · '+esc(ed)+' only':'')+'. Week 1 = days 1–7 after the wedding, week 2 = days 8–14, and so on. “About to be late” = due in the next '+vtSoon(type)+' days. Tap a row to see that wedding on the board.</div>';
+  if(show('done')) h+='<details class="vgroup done"'+(S.vtDoneOpen||k==='done'?' open':'')+' ontoggle="S.vtDoneOpen=this.open"><summary>Delivered ('+done.length+') · newest first</summary>'+
+    (done.length?vtTable(done,true):'<div class="empty">Nothing delivered yet</div>')+'</details>';
+  [['late','Late',late],['soon','About to be late',soon],['ok','On track',ok]].forEach(function(g){
+    if(!show(g[0])) return;
+    h+='<section class="vgroup '+g[0]+'"><h2>'+g[1]+' ('+g[2].length+')'+(g[0]==='late'?' · most late first':'')+'</h2>'+(g[2].length?vtTable(g[2],false):'<div class="empty">None</div>')+'</section>';
+  });
+  box.innerHTML=h;
 }
 /* scroll bar on top of the columns, kept in step with the board */
 function linkBars(){
@@ -429,6 +559,7 @@ function copyLink(n){
 function tile(f,label,n,bad,mine){ return '<button class="tile'+(S.filter===f?' on':'')+(bad?' bad':'')+(mine?' mine':'')+'" onclick="setFilter(\''+f+'\')"><div class="label">'+label+'</div><div class="n">'+n+'</div></button>'; }
 function setFilter(f){ S.filter=(S.filter===f?'all':f); render(); }
 function renderLanes(){
+  if(!document.getElementById('lanes')){ renderVT(); return; }      // the Teaser / Highlight / Documentary view is open
   var d=S.data, q=S.q.trim().toLowerCase();
   var shown=d.cards.filter(function(c){
     if(q && c.couple.toLowerCase().indexOf(q)<0) return false;
