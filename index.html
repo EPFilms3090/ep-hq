@@ -275,6 +275,14 @@ function onLane(c,l){ return lanesOf(c).indexOf(l)>=0; }
 function laneName(l){ var a=S.data&&S.data.role==='Assistant'; return l==='mine'?(a?'With Rafael':'Your turn'):l==='maga'?(a?'Ready to send':'Maga sends'):LANES.filter(function(x){return x[0]===l;})[0][1]; }
 var EDS = ['Betania','Sanjay','Gilberth'];
 var SENDS = { teaser:['Teaser','Teaser sent to the couple'], hl:['Highlight','Highlight sent to the couple'], doc:['Documentary','Documentary sent to the couple'] };
+function vName(c,t){ var v=(c.videos||[]).filter(function(x){return x.type===t;})[0]; return v?v.label:SENDS[t][0]; }
+/* Silver: pick the second video — Documentary, Ceremony or nothing (nothing = Betania gets nothing) */
+function secondBox(c,K){
+  if(!c.silver) return '';
+  var o=[['','Choose…'],['Documentary','Documentary (Betania)'],['Ceremony','Ceremony (Betania)'],['None','Nothing — Highlight only']];
+  return '<div class="row"><span class="name">Silver 2nd video</span><select aria-label="Silver second video" onchange="if(this.value)act(\'second\','+K+',\'\',\'\',this.value)">'+
+    o.map(function(x){ return '<option value="'+x[0]+'"'+((c.second||'')===x[0]?' selected':'')+(x[0]===''&&c.second?' disabled':'')+'>'+x[1]+'</option>'; }).join('')+'</select></div>';
+}
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function toast(msg,bad){ var t=document.getElementById('toast'); t.textContent=msg; t.className=bad?'bad':''; t.style.display='block'; clearTimeout(toast.h); toast.h=setTimeout(function(){t.style.display='none';},msg.length>60?8000:4500); }
@@ -482,7 +490,7 @@ function vtStatus(r){
 function vtTable(rows,doneCol){
   return '<div class="vt"><table><colgroup><col style="width:29%"><col style="width:14%"><col style="width:13%"><col style="width:13%"><col style="width:31%"></colgroup><thead><tr><th>Couple</th><th>'+(doneCol?'Delivered in':'Now in')+'</th><th>Editor</th><th>Due</th><th>Status</th></tr></thead><tbody>'+
     rows.map(function(r){
-      return '<tr onclick="vtOpen(\''+encodeURIComponent(r.c.couple).replace(/'/g,'%27')+'\')" title="Show this wedding on the board"><td><div class="cp">'+esc(r.c.couple)+'</div><div class="mt">Wedding '+esc(r.c.date)+(r.c.pkg?' · '+esc(r.c.pkg):'')+'</div></td>'+
+      return '<tr onclick="vtOpen(\''+encodeURIComponent(r.c.couple).replace(/'/g,'%27')+'\')" title="Show this wedding on the board"><td><div class="cp">'+esc(r.c.couple)+'</div><div class="mt">Wedding '+esc(r.c.date)+(r.c.pkg?' · '+esc(r.c.pkg):'')+(r.v.label==='Ceremony'?' · Ceremony':'')+'</div></td>'+
         '<td><span class="wk '+r.kind+'">Week '+r.week+'</span><div class="mt">'+(r.days===0?'wedding day':r.days+(r.days===1?' day':' days')+' after')+'</div></td>'+
         '<td>'+esc(r.v.editor==='ASK'?'Not chosen yet':r.v.editor||'—')+'</td><td>'+esc(r.v.due)+'</td><td>'+vtStatus(r)+'</td></tr>';
     }).join('')+'</tbody></table></div>';
@@ -598,8 +606,9 @@ function cardHtml(c,lane){
   if(here('start') && (c.waiting||[]).length) h+='<span class="pill s-due">Hand over: '+c.videos.filter(function(v){return !v.done&&!v.given;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
   if(here('mine') && c.inRevision){ var ri=revItems(c), rd=(c.revChecked||[]).length; h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+(ri.length?' · '+rd+'/'+ri.length+' done':'')+'</span>'; }
   if(here('mine') && (c.pickup||[]).length) h+='<span class="pill s-due">'+(S.data.isAdmin?'Pick up':'Rafael uploading')+': '+c.videos.filter(function(v){return v.pickup;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
+  if(c.needsSecond) h+='<span class="pill s-due">Silver: choose Documentary, Ceremony or nothing</span>';
   if(c.stage==='upcoming') h+='<span class="pill s-upcoming">Wedding in '+(-c.daysSince)+(c.daysSince===-1?' day':' days')+'</span>';
-  if(here('maga') && c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return SENDS[r][0];}).join(' + ')+'</span>';
+  if(here('maga') && c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return vName(c,r);}).join(' + ')+'</span>';
   if(here('maga') && c.allSent && !c.closed) h+='<span class="pill s-ready">Everything sent · close when ready</span>';
   if(c.closed) h+='<span class="pill s-done">Closed '+esc(c.closed)+'</span>';
   // only the videos that are at this step (the Maga column also shows what was already sent)
@@ -626,11 +635,13 @@ function detailHtml(c){
     return '<div class="sub">This wedding was saved here, but the master no longer has a wedding with this exact date and couple name (renamed, moved or cancelled). Nothing was lost. Check the master; if the names changed, tell Claude and the record will be re-linked.</div>';
   }
   if(c.stage==='upcoming'){
-    return '<div class="sub">The wedding is on '+esc(c.date)+'. Add the special requests now; the editors see them as soon as the footage is in.</div>'+notesEditor(c,K);
+    return '<div class="sub">The wedding is on '+esc(c.date)+'. Add the special requests now; the editors see them as soon as the footage is in.</div>'+(run?secondBox(c,K):'')+notesEditor(c,K);
   }
   if(c.stage==='footage'){
     if(!run) return '<div class="sub">Waiting for Rafael to confirm the footage is in the NAS.</div>'+notesEditor(c,K);
     if(nasOf(c).footage.length) h+='<div class="found">Found in the NAS: '+nasOf(c).footage.map(esc).join(', ')+'<br>Check it, then confirm below.</div>';
+    h+=secondBox(c,K);
+    if(c.needsSecond){ h+='<div class="sub">Choose the Silver second video above first — then the footage can be marked.</div>'+notesEditor(c,K); return h; }
     h+='<div class="label">Footage is in the NAS — what happens with each video</div>';
     var fresh=c.daysSince<=7;
     c.videos.forEach(function(v){
@@ -650,6 +661,7 @@ function detailHtml(c){
     return h;
   }
   // editing and later
+  if(run) h+=secondBox(c,K);
   var pk=c.videos.filter(function(v){return v.pickup;});
   if(pk.length){
     h+='<div class="pickup"><div class="label">'+(admin?'Pick up → upload to MediaZilla':'Rafael is uploading to MediaZilla')+'</div>';
@@ -702,7 +714,7 @@ function detailHtml(c){
   if(d.canSend){
     h+='<div class="label" style="margin-top:12px">Send to the couple (MediaZilla)</div><div class="row">';
     (c.readyAll||[]).forEach(function(r){
-      h+='</div><div class="row">'+dateInput(kid(c,'s'+r))+'<button class="btn" onclick="act(\''+r+'sent\','+K+',\'\',val(\''+kid(c,'s'+r)+'\'))">'+SENDS[r][1]+'</button>';
+      h+='</div><div class="row">'+dateInput(kid(c,'s'+r))+'<button class="btn" onclick="act(\''+r+'sent\','+K+',\'\',val(\''+kid(c,'s'+r)+'\'))">'+esc(vName(c,r))+' sent to the couple</button>';
     });
     if(!(c.readyAll||[]).length) h+='<span class="sub">'+(c.closed?'Closed '+esc(c.closed)+'.':c.allSent?'Every video was sent to the couple.':c.inRevision?'Waiting for Rafael to finish the revision.':'Nothing ready to send yet — waiting for the editors.')+'</span>';
     h+='</div>';
