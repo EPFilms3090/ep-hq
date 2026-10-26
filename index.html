@@ -581,7 +581,7 @@ function renderLanes(){
   var shown=d.cards.filter(function(c){
     if(q && c.couple.toLowerCase().indexOf(q)<0) return false;
     if(S.filter==='late') return c.late;
-    if(EDS.indexOf(S.filter)>=0) return c.videos.some(function(v){return v.editor===S.filter && !v.done && c.footage;});
+    if(EDS.indexOf(S.filter)>=0) return !c.closed && c.videos.some(function(v){return v.editor===S.filter;});   // every open wedding with a video by this editor, in every column
     if(S.filter.indexOf('lane:')===0) return onLane(c,S.filter.slice(5));
     if(S.filter==='st:footage') return c.stage==='footage'||c.stage==='assign';
     if(S.filter.indexOf('st:')===0) return c.stage===S.filter.slice(3);
