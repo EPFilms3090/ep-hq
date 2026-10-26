@@ -275,13 +275,13 @@ function lanesOf(c){ return c.lanes||['start']; }
 function onLane(c,l){ return lanesOf(c).indexOf(l)>=0; }
 function laneName(l){ var a=S.data&&S.data.role==='Assistant'; return l==='mine'?(a?'With Rafael':'Your turn'):l==='maga'?(a?'Ready to send':'Maga sends'):LANES.filter(function(x){return x[0]===l;})[0][1]; }
 var EDS = ['Betania','Sanjay','Gilberth'];
-var SENDS = { teaser:['Teaser','Teaser sent to the couple'], hl:['Highlight','Highlight sent to the couple'], doc:['Documentary','Documentary sent to the couple'] };
+var SENDS = { teaser:['Teaser','Teaser sent to the couple'], hl:['Highlight','Highlight sent to the couple'], doc:['Documentary','Documentary sent to the couple'], cer:['Ceremony','Ceremony sent to the couple'] };
 function vName(c,t){ var v=(c.videos||[]).filter(function(x){return x.type===t;})[0]; return v?v.label:SENDS[t][0]; }
 /* Who edits each video — picked by hand (Maga or Rafael): Betania, Sanjay, Gilberth, or "Do not have this video" */
 var VTYPES=[['teaser','Teaser'],['hl','Highlight'],['doc','Documentary']];
 function assignBox(c,K){
   var a=c.assign||{}, h='<div class="label" style="margin-top:4px">Editors — who edits each video</div>';
-  VTYPES.forEach(function(x){
+  VTYPES.concat(c.silver?[['cer','Ceremony']]:[]).forEach(function(x){      // Ceremony: Silver weddings only
     var t=x[0], cur=a[t]||'', v=(c.videos||[]).filter(function(y){return y.type===t;})[0], locked=!!(v&&v.done);
     h+='<div class="row"><span class="name">'+x[1]+'</span><select aria-label="'+x[1]+' editor"'+(locked?' disabled':'')+(cur?'':' class="ask"')+
       ' onchange="if(this.value)act(\'assign\','+K+',\''+t+'\',\'\',this.value)">'+
@@ -450,7 +450,7 @@ function renderBoard(){
 /* ---------------------------------------------------- one video across every wedding: delivered, about to be late, late.
    The week is counted from the wedding day: days 1-7 = week 1, 8-14 = week 2 ... (for a delivered video: the week it was delivered).
    "About to be late" = due in the next 4 days (Teaser) or 7 days (Highlight, Documentary) — the same windows as the board. */
-var VT=[['teaser','Teaser'],['hl','Highlight'],['doc','Documentary']];
+var VT=[['teaser','Teaser'],['hl','Highlight'],['doc','Documentary'],['cer','Ceremony']];
 function usIso(us){ var p=String(us||'').split('/'); return p.length===3&&p[2].length===4?p[2]+'-'+p[0]+'-'+p[1]:''; }
 function dBetween(a,b){ return Math.round((Date.parse(b+'T12:00:00Z')-Date.parse(a+'T12:00:00Z'))/864e5); }
 function weekOf(days){ return Math.max(1,Math.ceil(days/7)); }
@@ -477,7 +477,8 @@ function vtRows(type){
 }
 function vtSet(t){ S.vt=S.vt===t?'':t; S.vk=''; render(); }
 function vtButtons(){
-  return '<div class="vtabs">'+VT.map(function(x){
+  var vts=VT.filter(function(x){ return x[0]!=='cer' || S.data.cards.some(function(c){ return c.videos.some(function(v){ return v.type==='cer'; }); }); });
+  return '<div class="vtabs"'+(vts.length>3?' style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"':'')+'>'+vts.map(function(x){
     var r=vtRows(x[0]), n=function(k){ return r.filter(function(y){return y.kind===k;}).length; }, lt=n('late'), so=n('soon');
     return '<button class="vtab'+(S.vt===x[0]?' on':'')+'" onclick="vtSet(\''+x[0]+'\')" aria-pressed="'+(S.vt===x[0])+'"><span class="vname">'+x[1]+'</span><span class="vcount">'+
       '<b class="'+(lt?'l':'z')+'">'+lt+' late</b><b class="'+(so?'s':'z')+'">'+so+' about to be late</b><b class="d">'+n('done')+' delivered</b></span></button>';
