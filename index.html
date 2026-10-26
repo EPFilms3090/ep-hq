@@ -174,6 +174,7 @@
   .wk.done{color:var(--ok-fg);background:var(--ok-bg);border-color:var(--ok-bd)}
   .vt .st{font-weight:600} .vt .st.late{color:var(--bad-fg)} .vt .st.soon{color:var(--due-fg)} .vt .st.done{color:var(--ok-fg)}
   .vt .xtra{color:var(--muted);font-size:12.5px}
+  select.ask{border-color:var(--due-bd);color:var(--due-fg)}
   @media (max-width:640px){
     .vtabs{grid-template-columns:minmax(0,1fr)}
     .vt table{min-width:0;table-layout:auto} .vt colgroup,.vt thead{display:none} .vt table,.vt tbody{display:block}
@@ -276,12 +277,19 @@ function laneName(l){ var a=S.data&&S.data.role==='Assistant'; return l==='mine'
 var EDS = ['Betania','Sanjay','Gilberth'];
 var SENDS = { teaser:['Teaser','Teaser sent to the couple'], hl:['Highlight','Highlight sent to the couple'], doc:['Documentary','Documentary sent to the couple'] };
 function vName(c,t){ var v=(c.videos||[]).filter(function(x){return x.type===t;})[0]; return v?v.label:SENDS[t][0]; }
-/* Silver: pick the second video — Documentary, Ceremony or nothing (nothing = Betania gets nothing) */
-function secondBox(c,K){
-  if(!c.silver) return '';
-  var o=[['','Choose…'],['Documentary','Documentary (Betania)'],['Ceremony','Ceremony (Betania)'],['None','Nothing — Highlight only']];
-  return '<div class="row"><span class="name">Silver 2nd video</span><select aria-label="Silver second video" onchange="if(this.value)act(\'second\','+K+',\'\',\'\',this.value)">'+
-    o.map(function(x){ return '<option value="'+x[0]+'"'+((c.second||'')===x[0]?' selected':'')+(x[0]===''&&c.second?' disabled':'')+'>'+x[1]+'</option>'; }).join('')+'</select></div>';
+/* Who edits each video — picked by hand (Maga or Rafael): Betania, Sanjay, Gilberth, or "Do not have this video" */
+var VTYPES=[['teaser','Teaser'],['hl','Highlight'],['doc','Documentary']];
+function assignBox(c,K){
+  var a=c.assign||{}, h='<div class="label" style="margin-top:4px">Editors — who edits each video</div>';
+  VTYPES.forEach(function(x){
+    var t=x[0], cur=a[t]||'', v=(c.videos||[]).filter(function(y){return y.type===t;})[0], locked=!!(v&&v.done);
+    h+='<div class="row"><span class="name">'+x[1]+'</span><select aria-label="'+x[1]+' editor"'+(locked?' disabled':'')+(cur?'':' class="ask"')+
+      ' onchange="if(this.value)act(\'assign\','+K+',\''+t+'\',\'\',this.value)">'+
+      (cur?'':'<option value="" selected>Choose…</option>')+
+      EDS.concat(['None']).map(function(e){ return '<option value="'+e+'"'+(cur===e?' selected':'')+'>'+(e==='None'?'Do not have this video':e)+'</option>'; }).join('')+
+      '</select>'+(locked?'<span class="sub">delivered '+esc(v.done)+'</span>':'')+'</div>';
+  });
+  return h;
 }
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -452,7 +460,7 @@ function vtRows(type){
   S.data.cards.forEach(function(c){
     if(!c.matched || !c.iso || c.daysSince<0) return;            // only weddings that already happened
     c.videos.forEach(function(v){
-      if(v.type!==type) return;
+      if(v.type!==type || v.editor==='ASK') return;                // not assigned yet: shown on the board as "Assign editors"
       var r={c:c,v:v}, dueIso=usIso(v.due);
       if(v.done){
         var di=usIso(v.done);
@@ -490,7 +498,7 @@ function vtStatus(r){
 function vtTable(rows,doneCol){
   return '<div class="vt"><table><colgroup><col style="width:29%"><col style="width:14%"><col style="width:13%"><col style="width:13%"><col style="width:31%"></colgroup><thead><tr><th>Couple</th><th>'+(doneCol?'Delivered in':'Now in')+'</th><th>Editor</th><th>Due</th><th>Status</th></tr></thead><tbody>'+
     rows.map(function(r){
-      return '<tr onclick="vtOpen(\''+encodeURIComponent(r.c.couple).replace(/'/g,'%27')+'\')" title="Show this wedding on the board"><td><div class="cp">'+esc(r.c.couple)+'</div><div class="mt">Wedding '+esc(r.c.date)+(r.c.pkg?' · '+esc(r.c.pkg):'')+(r.v.label==='Ceremony'?' · Ceremony':'')+'</div></td>'+
+      return '<tr onclick="vtOpen(\''+encodeURIComponent(r.c.couple).replace(/'/g,'%27')+'\')" title="Show this wedding on the board"><td><div class="cp">'+esc(r.c.couple)+'</div><div class="mt">Wedding '+esc(r.c.date)+(r.c.pkg?' · '+esc(r.c.pkg):'')+'</div></td>'+
         '<td><span class="wk '+r.kind+'">Week '+r.week+'</span><div class="mt">'+(r.days===0?'wedding day':r.days+(r.days===1?' day':' days')+' after')+'</div></td>'+
         '<td>'+esc(r.v.editor==='ASK'?'Not chosen yet':r.v.editor||'—')+'</td><td>'+esc(r.v.due)+'</td><td>'+vtStatus(r)+'</td></tr>';
     }).join('')+'</tbody></table></div>';
@@ -606,7 +614,6 @@ function cardHtml(c,lane){
   if(here('start') && (c.waiting||[]).length) h+='<span class="pill s-due">Hand over: '+c.videos.filter(function(v){return !v.done&&!v.given;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
   if(here('mine') && c.inRevision){ var ri=revItems(c), rd=(c.revChecked||[]).length; h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+(ri.length?' · '+rd+'/'+ri.length+' done':'')+'</span>'; }
   if(here('mine') && (c.pickup||[]).length) h+='<span class="pill s-due">'+(S.data.isAdmin?'Pick up':'Rafael uploading')+': '+c.videos.filter(function(v){return v.pickup;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
-  if(c.needsSecond) h+='<span class="pill s-due">Silver: choose Documentary, Ceremony or nothing</span>';
   if(c.stage==='upcoming') h+='<span class="pill s-upcoming">Wedding in '+(-c.daysSince)+(c.daysSince===-1?' day':' days')+'</span>';
   if(here('maga') && c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return vName(c,r);}).join(' + ')+'</span>';
   if(here('maga') && c.allSent && !c.closed) h+='<span class="pill s-ready">Everything sent · close when ready</span>';
@@ -635,25 +642,23 @@ function detailHtml(c){
     return '<div class="sub">This wedding was saved here, but the master no longer has a wedding with this exact date and couple name (renamed, moved or cancelled). Nothing was lost. Check the master; if the names changed, tell Claude and the record will be re-linked.</div>';
   }
   if(c.stage==='upcoming'){
-    return '<div class="sub">The wedding is on '+esc(c.date)+'. Add the special requests now; the editors see them as soon as the footage is in.</div>'+(run?secondBox(c,K):'')+notesEditor(c,K);
+    return '<div class="sub">The wedding is on '+esc(c.date)+'. Add the special requests now; the editors see them as soon as the footage is in.</div>'+(run?assignBox(c,K):'')+notesEditor(c,K);
   }
   if(c.stage==='footage'){
     if(!run) return '<div class="sub">Waiting for Rafael to confirm the footage is in the NAS.</div>'+notesEditor(c,K);
     if(nasOf(c).footage.length) h+='<div class="found">Found in the NAS: '+nasOf(c).footage.map(esc).join(', ')+'<br>Check it, then confirm below.</div>';
-    h+=secondBox(c,K);
-    if(c.needsSecond){ h+='<div class="sub">Choose the Silver second video above first — then the footage can be marked.</div>'+notesEditor(c,K); return h; }
-    h+='<div class="label">Footage is in the NAS — what happens with each video</div>';
+    h+=assignBox(c,K);
+    if(c.needsAssign){ h+='<div class="sub">Pick an editor (or “Do not have this video”) for every video above — then the footage can be marked.</div>'+notesEditor(c,K); return h; }
+    h+='<div class="label" style="margin-top:12px">Footage is in the NAS — what happens with each video</div>';
     var fresh=c.daysSince<=7;
     c.videos.forEach(function(v){
-      h+='<div class="row"><span class="name">'+v.label+'</span><select id="'+kid(c,'e'+v.type)+'">'+
-        (v.editor==='ASK'?'<option value="">Choose editor…</option>':'')+
-        EDS.concat(['none']).map(function(e){return '<option value="'+e+'"'+(v.editor===e?' selected':'')+'>'+(e==='none'?'No '+v.label:e)+'</option>';}).join('')+'</select>'+
+      h+='<div class="row"><span class="name">'+v.label+'</span><span class="sub">'+esc(v.editor)+'</span>'+
         '<select id="'+kid(c,'m'+v.type)+'" onchange="document.getElementById(\''+kid(c,'ad'+v.type)+'\').style.display=this.value===\'done\'?\'\':\'none\'">'+
           '<option value="give"'+(fresh?' selected':'')+'>Give to the editor now</option><option value="wait"'+(fresh?'':' selected')+'>Wait — give it later</option><option value="done">Already delivered by the editor on…</option></select>'+
         dateInput(kid(c,'ad'+v.type)).replace('<input ','<input style="display:none" ')+'</div>';
     });
     h+='<div class="sub">The editor sees a video only once it is given to them. The wedding stays here until every video is given or delivered.</div>';
-    if(!c.videos.length) h+='<div class="sub">Package "'+esc(c.pkg)+'" has no rule yet. Add it in Settings → Editing rules.</div>';
+    if(!c.videos.length) h+='<div class="sub">Every video is set to “Do not have this video”.</div>';
     h+=notesEditor(c,K);
     h+='<div class="row"><label class="chk"><input type="checkbox" id="'+kid(c,'nt')+'"'+(c.daysSince<=7?' checked':'')+'> Tell the editors (Sanjay gets an email; WhatsApp / text buttons appear)</label></div>';
     if(c.daysSince>7) h+='<div class="sub">This wedding was more than a week ago, so by default nobody is messaged. Tick the box if you do want to tell them.</div>';
@@ -661,7 +666,7 @@ function detailHtml(c){
     return h;
   }
   // editing and later
-  if(run) h+=secondBox(c,K);
+  if(run) h+=assignBox(c,K);
   var pk=c.videos.filter(function(v){return v.pickup;});
   if(pk.length){
     h+='<div class="pickup"><div class="label">'+(admin?'Pick up → upload to MediaZilla':'Rafael is uploading to MediaZilla')+'</div>';
@@ -687,7 +692,6 @@ function detailHtml(c){
     h+='<div class="row"><span class="name">'+v.label+'</span>'+pill(v,true);
     if(run && !v.done){
       if(!v.given) h+='<button class="btn" onclick="act(\'give\','+K+',\''+v.type+'\')">Give to '+esc(v.editor)+' now</button>';
-      h+='<select onchange="act(\'editor\','+K+',\''+v.type+'\',\'\',this.value)">'+EDS.concat(['none']).map(function(e){return '<option value="'+e+'"'+(v.editor===e?' selected':'')+'>'+(e==='none'?'No '+v.label:e)+'</option>';}).join('')+'</select>';
       h+=dateInput(kid(c,'d'+v.type))+'<button class="btn ghost" onclick="act(\'done\','+K+',\''+v.type+'\',val(\''+kid(c,'d'+v.type)+'\'))">Delivered by the editor</button>';
       var fe=(nasOf(c).editors[v.editor]||[]); if(fe.length) h+='<span class="sub found-in">Found in '+esc(v.editor)+'’s folder: '+fe.map(esc).join(', ')+'</span>';
     }
@@ -748,8 +752,7 @@ function nasOf(c){ var n=(S.data&&S.data.nas||{})[c.key]; return n||{footage:[],
 function markFootage(key){
   var c=S.data.cards.filter(function(x){return x.key===key;})[0], pick={done:{},give:{}};
   for(var i=0;i<c.videos.length;i++){
-    var v=c.videos[i], s=val(kid(c,'e'+v.type)); if(!s){ toast('Choose an editor for the '+v.label,true); return; }
-    pick[v.type]=s;
+    var v=c.videos[i], s=v.editor; if(!s||s==='ASK'){ toast('Choose an editor for the '+v.label,true); return; }
     var mo=val(kid(c,'m'+v.type));
     if(mo==='give'&&s!=='none') pick.give[v.type]=true;
     if(mo==='done'&&s!=='none') pick.done[v.type]=val(kid(c,'ad'+v.type));
