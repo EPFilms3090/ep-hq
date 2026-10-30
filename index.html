@@ -226,6 +226,9 @@
   .mk .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-2px}
   .mk .note{color:var(--muted);font-size:12.5px}
   .mk .warn-box{margin:0}
+  .mk{--c-spend:#7FD8E8;--c-cost:#F5A97F}
+  .mk .kpi .v.money{font-size:30px} .mk .kpi .s{font-size:13px;color:var(--muted)} .mk .kpi .s b{color:var(--ink);font-weight:600}
+  .mk .off{font-family:var(--serif);font-size:26px;line-height:1.1;color:var(--muted)}
   .mk .tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#0E1A10;background:var(--c-booked);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:3px}
   .mk h2.mkh{font-family:var(--serif);font-weight:400;font-size:26px;margin:10px 0 -4px}
   .mk .season{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
@@ -1321,6 +1324,85 @@ function mkLeadHist(){
   return h+'</svg>';
 }
 
+/* ---------- Ad spend & cost per contract. The spend comes from the 3am daily ads report (Meta ad account, every campaign except
+   Prism Haus) through the "Ad spend" tab; EP HQ never talks to Meta or Google itself. New contract = deposit paid (the same "Booked").
+   Daily = spend ÷ days in the window; monthly = daily × 30.4. Spend per city = the Texas total split by each city's share of contracts. */
+function adOn(){ return !!(MK&&MK.ads&&MK.ads.m); }
+function adUsd(x){ return x===null||x===undefined||isNaN(x)?'—':'$'+Number(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function adSum(t,key,fair){
+  var ms=pMonths(t,key), idx=fair?pIdx():-1, o={meta:0,google:0,days:0,have:0,c:0,city:{}};
+  if(idx>=0) ms=ms.slice(0,idx+1);
+  for(var i=0;i<ms.length;i++){
+    var m=MK.ads.m[ms[i]]; if(!m) return null;
+    var x=(idx>=0&&i===idx)?m.u:m.n;
+    o.meta+=x.meta; o.google+=x.google; o.days+=x.days; o.have+=x.have; o.c+=x.c;
+    Object.keys(x.city).forEach(function(k){ o.city[k]=(o.city[k]||0)+x.city[k]; });
+  }
+  o.total=o.meta+o.google; o.gap=o.days-o.have;
+  o.daily=o.days?o.total/o.days:null; o.monthly=o.daily===null?null:o.daily*30.4;
+  o.cpc=o.c?o.total/o.c:null;
+  return o;
+}
+function adLabel(t,key,fair){
+  if(!fair) return pName(t,key,true);
+  var cut=MK.ads.cut, ms=pMonths(t,key), last=ms[pIdx()];
+  if(!cut) return pName(t,key,true)+' (no spend in yet)';
+  if(t==='month') return monthName(key,1)+' 1–'+cut+(key.slice(0,4)!==pSel().slice(0,4)?' '+key.slice(0,4):'');
+  return pName(t,key,true)+' to '+monthName(last,1)+' '+cut;
+}
+/* better = 'more' (contracts), 'less' (cost per contract) or '' (spend: no colour) */
+function adDelta(a,b,better,money){
+  if(a===null||b===null||a===undefined||b===undefined) return {t:'no data',c:''};
+  var d=a-b, p=b?Math.round(d/b*100):null, c=!d||!better?'':((d>0)===(better==='more')?'up':'down');
+  var amt=money?(d<0?'-':'+')+adUsd(Math.abs(d)).slice(0):(d>0?'+':'')+d;
+  if(Math.abs(d)<0.005) return {t:'=',c:''};
+  return {t:(d>0?'▲ ':'▼ ')+amt+(p!==null?' ('+(p>0?'+':'')+p+'%)':''),c:c};
+}
+function adSection(){
+  var t=mkT(), sel=pSel(), fair=pFair(), cm=mkCmps(), A=MK.ads;
+  var h='<section class="sec"><h2>Ad spend & cost per contract · '+esc(pName(t,sel))+'</h2>';
+  if(!adOn()||!A.rows) return h+'<div class="warn-box">No ad spend in EP HQ yet. It arrives with the 3am daily ads report.'+(A&&A.err?' Last problem: '+esc(A.err):'')+'</div></section>';
+  var a=adSum(t,sel,fair), cols=cm.map(function(c){ return {key:c[0],name:c[1],v:adSum(t,c[0],fair)}; });
+  h+='<p class="lede">'+esc(adLabel(t,sel,fair))+(fair?' — spend is in up to '+esc(ccUs(A.last))+' (yesterday arrives at 3am), so every comparison uses the same days.':'')+
+     ' Meta (Instagram) from the 3am daily ads report; Google Ads is not running. New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
+  if(A.err) h+='<div class="warn-box">Ad spend: '+esc(A.err)+'</div>';
+  if(a&&a.gap>0) h+='<div class="warn-box">'+a.gap+' day'+(a.gap>1?'s':'')+' of this period have no spend in EP HQ yet, so these numbers are low.</div>';
+  function chips(get,better,money){ return cols.map(function(c){ var x=adDelta(get(a),c.v?get(c.v):null,better,money); return '<span class="dl '+x.c+'">vs '+esc(adLabel(t,c.key,fair))+': <b>'+esc(x.t)+'</b></span>'; }).join(''); }
+  h+='<div class="kpis">'+
+    '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Meta (Instagram) spend</div><div class="v money">'+adUsd(a&&a.days?a.meta/a.days:null)+'<span class="s"> / day</span></div>'+
+      '<div class="s">Monthly <b>'+adUsd(a&&a.days?a.meta/a.days*30.4:null)+'</b> · in the period <b>'+adUsd(a?a.meta:null)+'</b></div><div class="chips">'+chips(function(o){ return o.days?o.meta/o.days:null; },'',true)+'</div></div>'+
+    '<div class="kpi" style="--c:var(--muted)"><div class="k">Google Ads spend</div><div class="off">Not running</div><div class="s"><b>$0.00</b> / day · <b>$0.00</b> monthly</div></div>'+
+    '<div class="kpi" style="--c:var(--c-booked)"><div class="k">New contracts</div><div class="v">'+(a?a.c:'—')+'</div><div class="chips">'+chips(function(o){ return o.c; },'more',false)+'</div></div>'+
+    '<div class="kpi" style="--c:var(--c-cost)"><div class="k">Cost per contract</div><div class="v money">'+adUsd(a?a.cpc:null)+'</div><div class="s">all ad spend ÷ new contracts</div><div class="chips">'+chips(function(o){ return o.cpc; },'less',true)+'</div></div>'+
+  '</div>';
+  /* the comparison table */
+  var rows=[['Total ad spend in the period',function(o){return o.total;},'',true],['Daily',function(o){return o.daily;},'',true],['Monthly (daily × 30.4)',function(o){return o.monthly;},'',true],
+            ['  Meta (Instagram) daily',function(o){return o.days?o.meta/o.days:null;},'',true],['  Google Ads daily',function(o){return o.days?o.google/o.days:null;},'',true],
+            ['New contracts',function(o){return o.c;},'more',false],['Cost per contract',function(o){return o.cpc;},'less',true]];
+  h+='<div class="tbl fit" style="margin-top:12px"><table><tr><th></th><th>'+esc(adLabel(t,sel,fair))+'</th>'+cols.map(function(c){ return '<th>'+esc(adLabel(t,c.key,fair))+'</th><th>Change</th>'; }).join('')+'</tr>';
+  rows.forEach(function(r){
+    var av=a?r[1](a):null;
+    h+='<tr><td>'+esc(r[0].trim())+'</td><td><b>'+(r[3]?adUsd(av):(av===null?'—':av))+'</b></td>';
+    cols.forEach(function(c){ var bv=c.v?r[1](c.v):null, d=adDelta(av,bv,r[2],r[3]); h+='<td class="dim">'+(r[3]?adUsd(bv):(bv===null?'—':bv))+'</td><td class="'+d.c+'">'+esc(d.t)+'</td>'; });
+    h+='</tr>';
+  });
+  h+='</table></div>';
+  /* per city */
+  if(a&&a.c){
+    var cities=Object.keys(a.city).sort(function(x,y){ return a.city[y]-a.city[x]||(x==='City not known')-(y==='City not known')||(x<y?-1:1); });
+    h+='<h3 style="margin:16px 0 6px;font-size:15px">Per city · '+esc(adLabel(t,sel,fair))+'</h3><div class="tbl fit"><table><tr><th>City</th><th>New contracts</th><th>Share</th><th>Spend share · daily</th><th>Spend share · monthly</th><th>Cost per contract</th></tr>';
+    cities.forEach(function(k){
+      var n=a.city[k], sh=n/a.c;
+      h+='<tr><td>'+esc(k)+'</td><td><b>'+n+'</b></td><td>'+Math.round(sh*100)+'%</td><td>'+adUsd(a.daily===null?null:a.daily*sh)+'</td><td>'+adUsd(a.monthly===null?null:a.monthly*sh)+'</td><td>'+adUsd(a.cpc)+'</td></tr>';
+    });
+    h+='<tr class="sel"><td><b>Texas total</b></td><td><b>'+a.c+'</b></td><td>100%</td><td><b>'+adUsd(a.daily)+'</b></td><td><b>'+adUsd(a.monthly)+'</b></td><td><b>'+adUsd(a.cpc)+'</b></td></tr></table></div>'+
+       '<p class="note">Meta cannot tell spend per city: both ad sets target all 8 cities together and Meta reports Texas only. So each city gets the Texas spend in proportion to its share of new contracts — which is why every city shows the same cost per contract. The city comes from the master (same wedding date and name), otherwise from the inquiry form’s venue.</p>';
+  } else h+='<p class="sub" style="margin-top:10px">No new contracts in this period yet, so no cost per contract or city split.</p>';
+  h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads: not running ($0).</p>';
+  return h+'</section>';
+}
+function ccUs(iso){ return iso?String(iso).slice(5,7)+'/'+String(iso).slice(8,10)+'/'+String(iso).slice(0,4):'—'; }
+
 function renderMarketing(){
   var d=S.data, h='<header><div><h1>Marketing <span class="ver">alpha 2</span></h1><div class="sub">Only you see this · today '+esc(d.today)+(MK&&MK.updated?' · emails read '+esc(MK.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM</div></div>'+
     '<div class="row" style="margin:0">'+viewSwitch()+'<button class="chip" onclick="MK=null;loadMkt();renderMarketing()">Refresh</button></div></header>';
@@ -1349,6 +1431,7 @@ function renderMarketing(){
   }).join('')+'</div>';
   h+='<div class="grid2 wide"><section class="sec"><h2>The funnel · '+esc(pName(t,sel))+'</h2><p class="lede">Solid = '+esc(pLabel(t,sel))+'. Dashed outline = '+esc(pLabel(t,pLY(t,sel)))+'.</p>'+mkFunnel()+'</section>'+
      '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
+  h+=adSection();
   var mlabel=(MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1], yr=sel.slice(0,4);
   h+='<section class="sec"><h2>'+esc(mlabel)+' by '+(t==='month'?'month':t==='quarter'?'quarter':'year')+(t==='year'?'':' · '+yr+' against '+(+yr-1))+'</h2>'+
      '<div class="legend">'+(t==='year'?'<span>Bars = each year (dashed = so far)</span><span>White line = last year by the same day</span>':'<span><i style="background:var(--c-'+(S.mmet||'new')+')"></i>'+yr+'</span><span><i style="background:var(--c-'+(S.mmet||'new')+');opacity:.32"></i>'+(+yr-1)+'</span><span>Dashed = in progress · white line = last year by the same day</span>')+'</div>'+
