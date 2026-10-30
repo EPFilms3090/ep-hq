@@ -1401,6 +1401,38 @@ function adSection(){
   h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads: not running ($0).</p>';
   return h+'</section>';
 }
+/* ---------- Date checks & turn-downs. From the "AVAILABILITY REQUESTS" sheet (the website's availability calendar), read only,
+   copied into the "Date checks" tabs. Fixed periods: this month so far, last month, last 7 days. A couple counts in the period of their first check. */
+var DCP=[['month','This month'],['prev','Last month'],['week','Last 7 days']];
+var DCDOW=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+function dcPct(a,b){ return b?Math.round(a/b*100)+'%':'—'; }
+function dcRange(p){ return monthName(p.start,1)+' '+(+p.start.slice(8,10))+'–'+(p.start.slice(0,7)===p.to.slice(0,7)?'':monthName(p.to,1)+' ')+(+p.to.slice(8,10)); }
+function dcSection(){
+  var D=MK.dc, h='<section class="sec"><h2>Date checks & turn-downs</h2>';
+  if(!D||!D.rows) return h+'<div class="warn-box">No date checks yet.'+(D&&D.err?' '+esc(D.err):'')+'</div></section>';
+  var P=D.periods, sel=S.dcp||'month';
+  h+='<p class="lede">Every date a couple checked on the website calendar (FULL = they were turned away). Couples = people, each counted once, in the period of their first check. From the “AVAILABILITY REQUESTS” sheet, copied '+esc(D.copied||'—')+'. The log began '+esc(ccUs(D.first))+'.</p>';
+  if(D.err) h+='<div class="warn-box">Could not read AVAILABILITY REQUESTS just now, so this is the last copy: '+esc(D.err)+'</div>';
+  h+='<div class="tbl fit"><table><tr><th></th>'+DCP.map(function(x){ var p=P[x[0]]; return '<th>'+x[1]+'<br><span class="dim">'+esc(dcRange(p))+'</span></th>'; }).join('')+'</tr>';
+  [['Date checks',function(p){return p.checks;}],['FULL (turned away)',function(p){return p.full;}],['AVAILABLE',function(p){return p.avail;}],['% of checks FULL',function(p){return dcPct(p.full,p.checks);}],
+   ['Couples who checked',function(p){return p.couples;}],['Couples turned away',function(p){return p.away;}],['% of couples turned away',function(p){return dcPct(p.away,p.couples);}]].forEach(function(r,i){
+    h+='<tr'+(i===3||i===6?' class="sel"':'')+'><td>'+r[0]+'</td>'+DCP.map(function(x){ return '<td><b>'+r[1](P[x[0]])+'</b></td>'; }).join('')+'</tr>';
+  });
+  h+='</table></div>';
+  var p=P[sel];
+  h+='<div class="ctl" style="margin:14px 0 8px">'+DCP.map(function(x){ return '<button class="chip'+(sel===x[0]?' on':'')+'" onclick="S.dcp=\''+x[0]+'\';renderMarketing()">'+x[1]+' · '+esc(dcRange(P[x[0]]))+'</button>'; }).join('')+'</div>';
+  function tbl(title,first,keys,obj){
+    var t='<h3 style="margin:10px 0 6px;font-size:15px">'+title+'</h3><div class="tbl fit"><table><tr><th>'+first+'</th><th>Checks</th><th>FULL</th><th>% FULL</th><th>Couples</th><th>Turned away</th><th>% turned away</th></tr>';
+    keys.forEach(function(k){ var x=obj[k]; if(!x) return; t+='<tr><td>'+esc(k)+'</td><td><b>'+x.checks+'</b></td><td>'+x.full+'</td><td>'+dcPct(x.full,x.checks)+'</td><td><b>'+x.couples+'</b></td><td>'+x.away+'</td><td>'+dcPct(x.away,x.couples)+'</td></tr>'; });
+    return t+'</table></div>';
+  }
+  var dows=DCDOW.concat(Object.keys(p.dow).filter(function(k){ return DCDOW.indexOf(k)<0; }));
+  var srcs=Object.keys(p.src).sort(function(a,b){ return (p.src[b].checks-p.src[a].checks)||(a<b?-1:1); });
+  h+=tbl('By day of the week (of the wedding date) · '+esc(dcRange(p)),'Day',dows,p.dow);
+  h+=tbl('By source / ad set · '+esc(dcRange(p)),'Came from',srcs,p.src);
+  h+='<p class="note">Source = the page they came from. “Instagram ad · …” names the ad set when the ad tags carry it; “not an ad” = a link on your Instagram profile or a post; “no tags” = no tracking on the link (for example from Google search or typed in). Nothing is ever written to AVAILABILITY REQUESTS; the copy is in the “Date checks” and “Date checks - couples” tabs of the EP Command Center sheet.</p>';
+  return h+'</section>';
+}
 function ccUs(iso){ return iso?String(iso).slice(5,7)+'/'+String(iso).slice(8,10)+'/'+String(iso).slice(0,4):'—'; }
 
 function renderMarketing(){
@@ -1432,6 +1464,7 @@ function renderMarketing(){
   h+='<div class="grid2 wide"><section class="sec"><h2>The funnel · '+esc(pName(t,sel))+'</h2><p class="lede">Solid = '+esc(pLabel(t,sel))+'. Dashed outline = '+esc(pLabel(t,pLY(t,sel)))+'.</p>'+mkFunnel()+'</section>'+
      '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
   h+=adSection();
+  h+=dcSection();
   var mlabel=(MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1], yr=sel.slice(0,4);
   h+='<section class="sec"><h2>'+esc(mlabel)+' by '+(t==='month'?'month':t==='quarter'?'quarter':'year')+(t==='year'?'':' · '+yr+' against '+(+yr-1))+'</h2>'+
      '<div class="legend">'+(t==='year'?'<span>Bars = each year (dashed = so far)</span><span>White line = last year by the same day</span>':'<span><i style="background:var(--c-'+(S.mmet||'new')+')"></i>'+yr+'</span><span><i style="background:var(--c-'+(S.mmet||'new')+');opacity:.32"></i>'+(+yr-1)+'</span><span>Dashed = in progress · white line = last year by the same day</span>')+'</div>'+
