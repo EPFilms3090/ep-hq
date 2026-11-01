@@ -235,6 +235,13 @@
   .mk .season span{font-size:13px;border-radius:999px;padding:4px 10px;background:var(--field)}
   .mk .season .pk{color:var(--up);background:rgba(140,245,168,.10)} .mk .season .sl{color:var(--down);background:rgba(255,154,139,.10)}
   .mk .mklist{margin:10px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6} .mk .mklist .dim{color:var(--muted)}
+  .mk{--c-profit:#8CF5A8;--c-margin:#F0CF85;--c-crew:#B9A6FF}
+  .mk td.neg,.mk .v.neg{color:var(--down)} .mk .est{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#1A1405;background:#F0CF85;border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+  .mk .be{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px;margin:8px 0 12px}
+  .mk .be label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+  .mk .be input{font:inherit;font-size:15px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--field);color:var(--ink);width:100%;box-sizing:border-box}
+  .mk .be input:focus-visible{outline:2px solid var(--c-margin);outline-offset:1px}
+  .mk .whatif{display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#1A1405;background:var(--c-margin);border-radius:999px;padding:3px 10px;margin:0 0 8px}
 </style>
 </head>
 <body>
@@ -1335,7 +1342,7 @@ function adSum(t,key,fair){
   for(var i=0;i<ms.length;i++){
     var m=MK.ads.m[ms[i]]; if(!m) return null;
     var x=(idx>=0&&i===idx)?m.u:m.n;
-    o.meta+=x.meta; o.google+=x.google; o.days+=x.days; o.have+=x.have; o.c+=x.c;
+    o.meta+=x.meta; o.google+=x.google; o.days+=x.days; o.have+=x.have; o.c+=x.c; if(x.bf) o.bf=true;
     Object.keys(x.city).forEach(function(k){ o.city[k]=(o.city[k]||0)+x.city[k]; });
   }
   o.total=o.meta+o.google; o.gap=o.days-o.have;
@@ -1366,6 +1373,7 @@ function adSection(){
   h+='<p class="lede">'+esc(adLabel(t,sel,fair))+(fair?' — spend is in up to '+esc(ccUs(A.last))+' (yesterday arrives at 3am), so every comparison uses the same days.':'')+
      ' Meta (Instagram) from the 3am daily ads report; Google Ads is not running. New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
   if(A.err) h+='<div class="warn-box">Ad spend: '+esc(A.err)+'</div>';
+  if(a&&a.bf) h+='<p class="note" style="margin:0 0 10px">This period includes the older ad account (Otis): monthly totals from Nov 2024 to May 2025, kept in the “Ad spend - monthly backfill” tab. Google Ads for those months is not known (left blank).'+(fair?' For the same-days comparison the month total is spread evenly over its days.':'')+'</p>';
   if(a&&a.gap>0) h+='<div class="warn-box">'+a.gap+' day'+(a.gap>1?'s':'')+' of this period have no spend in EP HQ yet, so these numbers are low.</div>';
   function chips(get,better,money){ return cols.map(function(c){ var x=adDelta(get(a),c.v?get(c.v):null,better,money); return '<span class="dl '+x.c+'">vs '+esc(adLabel(t,c.key,fair))+': <b>'+esc(x.t)+'</b></span>'; }).join(''); }
   h+='<div class="kpis">'+
@@ -1401,6 +1409,90 @@ function adSection(){
   h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads: not running ($0).</p>';
   return h+'</section>';
 }
+/* ---------- Profit (approved 11/01/2026). Money received (Sales Board monthly totals) minus Total costs (the "Costs" tab).
+   Money is shown per day and per month (monthly = daily × 30.4). Shooter pay is a monthly total, so crew cost is per wedding over months. */
+function pfUsd(x){ return x===null||x===undefined||isNaN(x)?'—':(x<0?'-':'')+adUsd(Math.abs(x)); }
+function pfPct(x){ return x===null||x===undefined||isNaN(x)?'—':(x*100).toFixed(1)+'%'; }
+function pfMon(k){ return monthName(k,1)+' '+k.slice(0,4); }
+function pfRange(L){ return L&&L.from?pfMon(L.from)+' – '+pfMon(L.to):'—'; }
+function pfDays(k){ return new Date(Date.UTC(+k.slice(0,4),+k.slice(5,7),0)).getUTCDate(); }
+function pfMoney3(x,days){ if(x===null||x===undefined) return '—'; var d=days?x/days:null; return '<b>'+pfUsd(x)+'</b><br><span class="dim">'+pfUsd(d)+' / day · '+pfUsd(d===null?null:d*30.4)+' / mo</span>'; }
+function pfSection(){
+  var P=MK.profit, h='<section class="sec"><h2>Profit · money received minus costs</h2>';
+  if(!P||!P.rows||!P.rows.length) return h+'<div class="warn-box">No profit numbers yet.'+(P&&P.err?' '+esc(P.err):'')+'</div></section>';
+  var L=P.last12, Y=P.ytd;
+  h+='<p class="lede">Money received = all payments that came in that month (the Sales Board, before fees). Costs = the “Costs” tab (business checking + Amex from the CPA folder; crew cross-checked with PAGOS). Profit = money received − costs. Margin = profit ÷ money received. Per day = ÷ days; per month = per day × 30.4.</p>';
+  if(P.err) h+='<div class="warn-box">Profit: '+esc(P.err)+'</div>';
+  if(L.est) h+='<p class="note" style="margin:0 0 10px"><span class="est">est.</span> '+L.est+' of the last 12 months have estimated costs (missing statement or fees estimated) — yellow in the Costs tab.</p>';
+  var dL=L.days||365;
+  h+='<h3 style="margin:4px 0 8px;font-size:15px">Last 12 months · '+esc(pfRange(L))+'</h3><div class="kpis">'+
+    '<div class="kpi" style="--c:var(--c-profit)"><div class="k">Profit</div><div class="v money'+(L.profit<0?' neg':'')+'">'+pfUsd(L.profit)+'</div><div class="s">'+pfUsd(L.profit/dL)+' / day · <b>'+pfUsd(L.profit/dL*30.4)+'</b> / month</div></div>'+
+    '<div class="kpi" style="--c:var(--c-margin)"><div class="k">Margin</div><div class="v">'+pfPct(L.margin)+'</div><div class="s">of '+pfUsd(L.money)+' received</div></div>'+
+    '<div class="kpi" style="--c:var(--c-new)"><div class="k">Profit before owner pay & cars</div><div class="v money">'+pfUsd(L.before)+'</div><div class="s">'+pfUsd(L.before/dL)+' / day · <b>'+pfUsd(L.before/dL*30.4)+'</b> / month · '+pfPct(L.money?L.before/L.money:null)+'</div></div>'+
+    '<div class="kpi" style="--c:var(--c-booked)"><div class="k">Profit per contract</div><div class="v money">'+pfUsd(L.ppc)+'</div><div class="s">'+L.contracts+' new contract'+(L.contracts===1?'':'s')+' (deposit paid)</div></div>'+
+    '<div class="kpi" style="--c:var(--c-crew)"><div class="k">Crew cost per wedding</div><div class="v money">'+pfUsd(L.crewPer)+'</div><div class="s">crew & editors ÷ weddings shot · '+(L.weddings===null?'no weddings in the master for these months':L.weddings+' weddings over '+L.crewMonths+' months')+'</div></div>'+
+  '</div>';
+  /* Last 12 vs YTD */
+  var cols=[L,Y];
+  h+='<div class="tbl fit" style="margin-top:12px"><table><tr><th></th>'+cols.map(function(c){ return '<th>'+esc(c.label)+'<br><span class="dim">'+esc(pfRange(c))+'</span></th>'; }).join('')+'</tr>';
+  [['Money received',function(c){return pfMoney3(c.money,c.days);}],['Costs',function(c){return pfMoney3(c.total,c.days);}],['Profit',function(c){return pfMoney3(c.profit,c.days);}],
+   ['Margin',function(c){return '<b>'+pfPct(c.margin)+'</b>';}],['Profit before owner pay & cars',function(c){return pfMoney3(c.before,c.days);}],
+   ['New contracts',function(c){return '<b>'+c.contracts+'</b>';}],['Profit per contract',function(c){return '<b>'+pfUsd(c.ppc)+'</b>';}],
+   ['Weddings shot',function(c){return c.weddings===null?'—':'<b>'+c.weddings+'</b>';}],['Crew cost per wedding',function(c){return '<b>'+pfUsd(c.crewPer)+'</b>'+(c.crewMonths?'<br><span class="dim">over '+c.crewMonths+' months</span>':'');}],
+   ['Months with estimated costs',function(c){return c.est?'<b>'+c.est+'</b>':'0';}]].forEach(function(r,i){
+    h+='<tr'+(i===2?' class="sel"':'')+'><td>'+r[0]+'</td>'+cols.map(function(c){ return '<td>'+r[1](c)+'</td>'; }).join('')+'</tr>';
+  });
+  h+='</table></div>';
+  /* month by month, newest first */
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Month by month</h3><p class="note" style="margin:0 0 8px">Each row is that month’s total. “12-mo rolling” = profit ÷ new contracts over the 12 months ending that month. Crew cost per wedding is rolling (up to 12 months) and starts in 2026: the master has no 2025 weddings tab.</p>';
+  h+='<div class="tbl fit"><table><tr><th>Month</th><th>Money received</th><th>Costs</th><th>Profit</th><th>Margin</th><th>Before owner pay & cars</th><th>New contracts</th><th>Profit / contract</th><th>12-mo rolling</th><th>Weddings shot</th><th>Crew / wedding</th></tr>';
+  P.rows.slice().reverse().forEach(function(r){
+    h+='<tr><td>'+esc(pfMon(r.key))+(r.est?'<span class="est" title="Estimated costs: '+esc(r.note)+'">est.</span>':'')+'</td><td>'+pfUsd(r.money)+'</td><td>'+pfUsd(r.total)+'</td><td class="'+(r.profit<0?'neg':'')+'"><b>'+pfUsd(r.profit)+'</b></td><td>'+pfPct(r.margin)+'</td><td>'+pfUsd(r.before)+'</td><td>'+(r.contracts===null?'—':r.contracts)+'</td><td>'+pfUsd(r.ppc)+'</td><td>'+pfUsd(r.ppc12)+'</td><td>'+(r.weddings===null?'—':r.weddings)+'</td><td>'+pfUsd(r.crewPer)+'</td></tr>';
+  });
+  h+='</table></div>';
+  if(P.rows.some(function(r){return r.money===null;})) h+='<p class="note">'+P.rows.filter(function(r){return r.money===null;}).map(function(r){return pfMon(r.key);}).join(', ')+': costs are in, but EP HQ has no money-received figure for those months (the Sales Board starts in 2025), so no profit is shown.</p>';
+  /* per package */
+  var pk=P.pkg||{}, ks=Object.keys(pk).sort(function(a,b){ return pk[b].total-pk[a].total; });
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Per package · deposits paid '+esc(pfRange(L))+'</h3>';
+  if(ks.length){
+    h+='<div class="tbl fit"><table><tr><th>Package</th><th>Bookings</th><th>Average contract</th><th>Total booked</th><th>Share of booked</th></tr>';
+    var tot=ks.reduce(function(s,k){return s+pk[k].total;},0);
+    ks.forEach(function(k){ h+='<tr><td>'+esc(k)+'</td><td><b>'+pk[k].n+'</b></td><td>'+pfUsd(pk[k].avg)+'</td><td>'+pfUsd(pk[k].total)+'</td><td>'+pfPct(tot?pk[k].total/tot:null)+'</td></tr>'; });
+    h+='<tr class="sel"><td><b>All</b></td><td><b>'+P.priceN+'</b></td><td><b>'+pfUsd(P.avgPrice)+'</b></td><td><b>'+pfUsd(tot)+'</b></td><td>100%</td></tr></table></div>';
+  } else h+='<p class="sub">No contract totals on the Leads tabs for these months yet.</p>';
+  h+='<p class="note">From the new Package / Contract total columns on the Leads tabs (from the signed contracts). Profit per package is not possible yet: shooter pay is a monthly total, not per wedding.'+(P.leadsNote?' Last fill: '+esc(P.leadsNote)+'.':'')+'</p>';
+  h+=pfBreakEven();
+  h+='<p class="note">Tabs in the EP Command Center sheet: “Costs” (Total costs = SUM of B:N; yellow = estimated), “Price log”, “Ad spend - monthly backfill” and “Profit” (rebuilt from the others). Change a cost in the Costs tab and this updates on the next load.</p>';
+  return h+'</section>';
+}
+/* break-even: a what-if, inputs start at the last 12 months */
+function pfBeDefaults(){ var b=(MK.profit||{}).be||{}; return { inq:b.inquiries===null||b.inquiries===undefined?'':+(+b.inquiries).toFixed(1), rate:b.rate===null||b.rate===undefined?'':+(b.rate*100).toFixed(1), price:b.price===null||b.price===undefined?'':+(+b.price).toFixed(2), crew:b.crew===null||b.crew===undefined?'':+(+b.crew).toFixed(2), fee:b.fee===null||b.fee===undefined?'':+(b.fee*100).toFixed(2), fixed:b.fixed===null||b.fixed===undefined?'':+(+b.fixed).toFixed(2) }; }
+function pfBeOut(){
+  var v=S.be||pfBeDefaults(), n=function(k){ var x=parseFloat(v[k]); return isNaN(x)?null:x; };
+  var inq=n('inq'), rate=n('rate'), price=n('price'), crew=n('crew'), fee=n('fee'), fixed=n('fixed');
+  if([inq,rate,price,crew,fee,fixed].some(function(x){return x===null;})) return '<p class="sub">Fill in every box to see the result.</p>';
+  var bk=inq*rate/100, money=bk*price, cost=bk*crew+money*fee/100+fixed, prof=money-cost, per=price*(1-fee/100)-crew;
+  var beB=per>0?fixed/per:null, beI=beB!==null&&rate>0?beB/(rate/100):null;
+  return '<div class="kpis">'+
+    '<div class="kpi" style="--c:var(--c-booked)"><div class="k">Bookings per month</div><div class="v money">'+bk.toFixed(1)+'</div><div class="s">'+inq+' inquiries × '+rate+'%</div></div>'+
+    '<div class="kpi" style="--c:var(--c-profit)"><div class="k">Profit per month</div><div class="v money'+(prof<0?' neg':'')+'">'+pfUsd(prof)+'</div><div class="s">'+pfUsd(prof/30.4)+' / day · margin '+pfPct(money?prof/money:null)+'</div></div>'+
+    '<div class="kpi" style="--c:var(--c-margin)"><div class="k">Break-even bookings</div><div class="v money">'+(beB===null?'—':beB.toFixed(1))+'</div><div class="s">per month · each booking leaves '+pfUsd(per)+' after crew and fees</div></div>'+
+    '<div class="kpi" style="--c:var(--c-new)"><div class="k">Break-even inquiries</div><div class="v money">'+(beI===null?'—':beI.toFixed(0))+'</div><div class="s">per month at '+rate+'% booked</div></div>'+
+  '</div>';
+}
+function pfBeSet(k,val){ S.be=S.be||pfBeDefaults(); S.be[k]=val; var o=document.getElementById('be-out'); if(o) o.innerHTML=pfBeOut(); }
+function pfBreakEven(){
+  var v=S.be||pfBeDefaults(), b=(MK.profit||{}).be||{};
+  var f=[['inq','Inquiries per month'],['rate','Booking rate (%)'],['price','Average contract ($)'],['crew','Crew cost per wedding ($)'],['fee','Payment fees (% of money)'],['fixed','Other costs per month ($)']];
+  var h='<h3 style="margin:18px 0 6px;font-size:15px">Break-even</h3><div class="whatif">What-if calculator, not a plan.</div>'+
+    '<p class="note" style="margin:0">Starts at the last 12 months ('+(b.months||0)+' months of the tower): inquiries and booking rate from the tower, average contract from the Leads tabs, crew per wedding and payment fees from the Costs tab, other costs = average monthly costs minus crew and fees (owner pay and cars included). Change any box.</p>'+
+    '<div class="be">'+f.map(function(x){ return '<label>'+x[1]+'<input type="number" inputmode="decimal" step="any" value="'+esc(v[x[0]])+'" oninput="pfBeSet(\''+x[0]+'\',this.value)"></label>'; }).join('')+'</div>'+
+    '<div id="be-out">'+pfBeOut()+'</div>'+
+    '<div class="ctl" style="margin-top:10px"><button class="chip" onclick="S.be=null;renderMarketing()">Back to the last 12 months</button></div>'+
+    '<p class="note">Simple model: every booking pays its full contract and is shot by the crew at the cost above. Real money comes in over many months (deposit now, the rest near the wedding), so a month’s profit will not match this.</p>';
+  return h;
+}
+
 /* ---------- Date checks & turn-downs. From the "AVAILABILITY REQUESTS" sheet (the website's availability calendar), read only,
    copied into the "Date checks" tabs. Fixed periods: this month so far, last month, last 7 days. A couple counts in the period of their first check. */
 var DCP=[['month','This month'],['prev','Last month'],['week','Last 7 days']];
@@ -1464,6 +1556,7 @@ function renderMarketing(){
   h+='<div class="grid2 wide"><section class="sec"><h2>The funnel · '+esc(pName(t,sel))+'</h2><p class="lede">Solid = '+esc(pLabel(t,sel))+'. Dashed outline = '+esc(pLabel(t,pLY(t,sel)))+'.</p>'+mkFunnel()+'</section>'+
      '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
   h+=adSection();
+  h+=pfSection();
   h+=dcSection();
   var mlabel=(MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1], yr=sel.slice(0,4);
   h+='<section class="sec"><h2>'+esc(mlabel)+' by '+(t==='month'?'month':t==='quarter'?'quarter':'year')+(t==='year'?'':' · '+yr+' against '+(+yr-1))+'</h2>'+
