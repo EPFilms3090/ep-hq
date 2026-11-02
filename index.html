@@ -116,12 +116,14 @@
   .urgent{display:block;width:100%;text-align:left;font:inherit;font-size:14px;cursor:pointer}
   .lane .lsub{font-size:12px;color:var(--muted);margin:-6px 4px 10px}
   @media (max-width:640px){ .wrap{padding:12px} h1{font-size:23px} .board{grid-auto-columns:88%;scroll-snap-type:x mandatory} .hscroll{display:none} }
-  /* Editing board: 4 columns that always fit the screen (no sideways scrolling) */
-  .board.four{grid-auto-flow:row;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;scroll-snap-type:none;align-items:start}
+  /* Editing board: 5 columns that always fit the screen (no sideways scrolling) */
+  .board.four{grid-auto-flow:row;grid-template-columns:repeat(5,minmax(0,1fr));overflow:visible;scroll-snap-type:none;align-items:start}
   .board.four .lane{min-width:0}
   .ver{font-family:var(--sans);font-size:12px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;vertical-align:middle}
   .lane.mine{border-color:var(--due-bd)}
   .lane.mine h2{color:var(--due-fg)}
+  .lane.rev{border-color:var(--bad-bd)} .lane.rev h2{color:var(--bad-fg)}
+  @media (max-width:1300px){ .board.four{grid-template-columns:repeat(3,minmax(0,1fr))} }
   .lane .lsub{font-size:12px;color:var(--muted);margin:-6px 4px 10px}
   @media (max-width:1000px){ .board.four{grid-template-columns:repeat(2,minmax(0,1fr))} }
   @media (max-width:640px){ .board.four{grid-template-columns:minmax(0,1fr)} }
@@ -279,7 +281,7 @@ var S = { data:null, open:{}, q:'', filter:'all', confirm:'', view:'edit', bq:''
 try { var hv = location.hash==='#brides' ? 'brides' : location.hash==='#marketing' ? 'mkt' : '', lv = localStorage.getItem('ep_view'); S.view = hv || (lv==='brides'||lv==='mkt' ? lv : 'edit'); } catch (e) {}
 /* 4 columns, left to right the way a wedding moves. "Your turn" = Rafael: pick up delivered videos and upload them to
    MediaZilla, and do revisions. Maga sends only what is already on MediaZilla. Closed weddings fold away under the board. */
-var LANES = [['start','Coming up & footage'], ['editors','With editors'], ['mine','Your turn'], ['maga','Maga sends']];
+var LANES = [['start','Coming up & footage'], ['editors','With editors'], ['mine','Your turn'], ['rev','In revision'], ['maga','Maga sends']];   // In revision: added 11/02/2026
 /* each video sits in its own column, so one wedding can show in two or three columns at once */
 function lanesOf(c){ return c.lanes||['start']; }
 function onLane(c,l){ return lanesOf(c).indexOf(l)>=0; }
@@ -439,7 +441,7 @@ function renderBoard(){
   var mineN=lc('mine');
   h+='<div class="tiles">'+
     tile('st:upcoming','Coming up',count('upcoming'))+tile('st:footage','Footage & hand-over',count('footage')+count('assign'))+tile('lane:editors','With editors',lc('editors'))+
-    tile('lane:mine',laneName('mine'),mineN,false,mineN>0)+tile('lane:maga',laneName('maga'),lc('maga'))+
+    tile('lane:mine',laneName('mine'),mineN,false,mineN>0)+tile('lane:rev',laneName('rev'),lc('rev'),cards.some(function(c){return onLane(c,'rev')&&c.revStatus==='late';}))+tile('lane:maga',laneName('maga'),lc('maga'))+
     tile('late','Late',late,late>0)+'</div>';
   h+='<div class="loads">'+EDS.map(function(e){
     var open=[],lt=0,due=0;
@@ -598,7 +600,8 @@ function renderLanes(){
     return true;
   });
   var subs={ start:'Weddings in the next 14 days, and footage to confirm', editors:'Videos the editors are working on',
-    mine:S.data.isAdmin?'Pick up from the NAS → upload to MediaZilla, and revisions':'Rafael is uploading to MediaZilla or doing a revision', maga:'On MediaZilla, ready to send to the couple' };
+    mine:S.data.isAdmin?'Pick up from the NAS → upload to MediaZilla':'Rafael is uploading to MediaZilla',
+    rev:S.data.isAdmin?'The client asked for changes: do the revision, then mark it done':'The client asked for changes; Rafael is doing them', maga:'On MediaZilla, ready to send to the couple' };
   var h='';
   LANES.forEach(function(l){
     var list=shown.filter(function(c){return onLane(c,l[0]);});
@@ -623,7 +626,7 @@ function cardHtml(c,lane){
   if(c.stage==='footage') h+='<span class="pill s-'+(c.footageStatus==='late'?'late':'waiting')+'">Footage '+(c.footageStatus==='late'?'late · ':'')+'due '+esc(c.footageDue)+'</span>';
   if(c.stage==='footage' && nasOf(c).footage.length) h+='<span class="pill s-ready">Footage found in NAS</span>';
   if(here('start') && (c.waiting||[]).length) h+='<span class="pill s-due">Hand over: '+c.videos.filter(function(v){return !v.done&&!v.given;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
-  if(here('mine') && c.inRevision){ var ri=revItems(c), rd=(c.revChecked||[]).length; h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+(ri.length?' · '+rd+'/'+ri.length+' done':'')+'</span>'; }
+  if(here('rev') && c.inRevision){ var ri=revItems(c), rd=(c.revChecked||[]).length; h+='<span class="pill s-'+(c.revStatus==='late'?'late':'due')+'">Revision ('+esc(c.revLabel)+') · Rafael · due '+esc(c.revDue)+(ri.length?' · '+rd+'/'+ri.length+' done':'')+'</span>'; }
   if(here('mine') && (c.pickup||[]).length) h+='<span class="pill s-due">'+(S.data.isAdmin?'Pick up':'Rafael uploading')+': '+c.videos.filter(function(v){return v.pickup;}).map(function(v){return v.label+' ('+v.editor+')';}).map(esc).join(', ')+'</span>';
   if(c.stage==='upcoming') h+='<span class="pill s-upcoming">Wedding in '+(-c.daysSince)+(c.daysSince===-1?' day':' days')+'</span>';
   if(here('maga') && c.readyAll&&c.readyAll.length) h+='<span class="pill s-ready">Ready to send: '+c.readyAll.map(function(r){return vName(c,r);}).join(' + ')+'</span>';
