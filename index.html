@@ -1518,7 +1518,7 @@ function clSection(){
   h+='<div class="ctl" style="margin:14px 0 8px"><input type="search" placeholder="Search a name" value="'+esc(S.clq||'')+'" oninput="S.clq=this.value;clRedraw()" aria-label="Search calls by name">'+
      [['all','All '+L.length],['yes','Booked'],['no','Not booked']].map(function(x){ return '<button class="chip'+(f===x[0]?' on':'')+'" onclick="S.clf=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>';
   h+='<div class="tbl" id="cl-list" style="max-height:560px;overflow:auto">'+clTable(shown)+'</div>';
-  h+='<p class="note">Left out: the two “test test” rows, the harassment row and rows marked IGNORE in Notes ('+(C.skipped||0)+' rows). Contract sent = the first contract date.</p>';
+  h+='<p class="note">Left out: the two “test test” rows, the “Prueba Test” row, the harassment row and rows marked IGNORE in Notes ('+(C.skipped||0)+' rows). Contract sent = the first contract date.</p>';
   return h+'</section>';
 }
 function clTable(rows){
