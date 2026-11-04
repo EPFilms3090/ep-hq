@@ -1692,38 +1692,69 @@ function igMonths(){
   return h+'</table></div>';
 }
 
-var IGD=[['reach','Reach'],['views','Views'],['pv','Profile visits'],['bio','Bio link taps'],['newF','New followers'],['inter','Interactions']];
+var IGD=[['followers','Total followers'],['reach','Reach'],['views','Views'],['pv','Profile visits'],['bio','Bio link taps'],['newF','New followers'],['unf','Unfollows'],
+         ['rFol','Reach: followers'],['rNon','Reach: non-followers'],['rAds','Reach from ads'],['inter','Interactions']];
 function igDaily(){
-  var k=S.igd||'reach', A=igDays().slice(-30), lab=(IGD.filter(function(x){ return x[0]===k; })[0]||IGD[0])[1];
+  var k=S.igd||'reach', A=igDays().slice(-30), lab=(IGD.filter(function(x){ return x[0]===k; })[0]||IGD[0])[1], tf=k==='followers';
   var h='<div class="ctl" style="margin-bottom:8px">'+IGD.map(function(x){ return '<button class="chip'+(k===x[0]?' on':'')+'" onclick="S.igd=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>';
+  if(tf) A=A.filter(function(r){ return typeof r.followers==='number'; });
   if(!A.length) return h+'<p class="sub">No days yet.</p>';
-  var max=1, W=720, H=170, bw=W/A.length, tot=0;
-  A.forEach(function(r){ max=Math.max(max,igNum(r[k])); tot+=igNum(r[k]); });
-  h+='<p class="lede">'+esc(lab)+': '+tot.toLocaleString('en-US')+' in '+A.length+' days · busiest day '+max.toLocaleString('en-US')+'. Hover a bar for the day.</p>';
+  var max=1, min=Infinity, W=720, H=170, bw=W/A.length, tot=0;
+  A.forEach(function(r){ var v=igNum(r[k]); max=Math.max(max,v); min=Math.min(min,v); tot+=v; });
+  /* total followers barely move day to day, so its bars start just under the lowest day instead of at 0 */
+  var base=tf?Math.max(0,min-Math.max(5,Math.round((max-min)*0.6))):0;
+  h+=tf?'<p class="lede">Total followers at the end of each day: '+A[0].followers.toLocaleString('en-US')+' on '+esc(igDay(A[0].date))+' → '+A[A.length-1].followers.toLocaleString('en-US')+' on '+esc(igDay(A[A.length-1].date))+
+        ' ('+((A[A.length-1].followers-A[0].followers)>=0?'+':'')+(A[A.length-1].followers-A[0].followers)+'). Instagram only tells today’s total; earlier days are worked out backwards from each day’s new followers and unfollows (marked ≈ when you hover). The bars start at '+base.toLocaleString('en-US')+', not 0.</p>'
+      :'<p class="lede">'+esc(lab)+': '+tot.toLocaleString('en-US')+' in '+A.length+' days · busiest day '+max.toLocaleString('en-US')+'. Hover a bar for the day.</p>';
   h+='<svg viewBox="0 0 '+W+' '+(H+22)+'" role="img" aria-label="'+esc(lab)+' per day, last '+A.length+' days">';
   A.forEach(function(r,i){
-    var v=igNum(r[k]), bh=Math.round((H-6)*v/max), x=i*bw;
-    h+='<rect x="'+(x+1.5).toFixed(1)+'" y="'+(H-bh)+'" width="'+Math.max(2,bw-3).toFixed(1)+'" height="'+bh+'" rx="3" fill="var(--c-ig)"><title>'+esc(igDay(r.date)+': '+v.toLocaleString('en-US')+' '+lab.toLowerCase())+'</title></rect>';
+    var v=igNum(r[k]), bh=Math.round((H-6)*(v-base)/((max-base)||1)), x=i*bw, est=tf&&r.from==='worked out'?'≈ ':'';
+    h+='<rect x="'+(x+1.5).toFixed(1)+'" y="'+(H-bh)+'" width="'+Math.max(2,bw-3).toFixed(1)+'" height="'+bh+'" rx="3" fill="var(--c-ig)"><title>'+esc(igDay(r.date)+': '+est+v.toLocaleString('en-US')+' '+lab.toLowerCase())+'</title></rect>';
     if(i%7===0) h+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H+17)+'" text-anchor="middle">'+esc(igDay(r.date))+'</text>';
   });
   return h+'</svg>';
 }
 
-var IGS=[['new','Newest'],['views','Views'],['reach','Reach'],['saves','Saves'],['shares','Shares'],['watch','Watch time']];
+/* who sees @epweddingfilms: Instagram splits the whole account's daily reach (not single Reels) into followers / non-followers and ads */
+function igWho(){
+  var A=igDays().slice(-30).filter(function(r){ return typeof r.rFol==='number'&&typeof r.rNon==='number'; });
+  if(!A.length) return '<p class="sub">No days yet.</p>';
+  function avg(k){ return Math.round(A.reduce(function(s,r){ return s+igNum(r[k]); },0)/A.length); }
+  var f=avg('rFol'), n=avg('rNon'), ad=avg('rAds'), all=avg('reach'), both=(f+n)||1;
+  var rows=[['Followers',f,'var(--c-booked)'],['Non-followers',n,'var(--c-new)'],['From ads (followers or not)',ad,'var(--c-signed)']];
+  var h='<p class="lede">Average per day over the last '+A.length+' days. Reach = different accounts; the split is Instagram’s own estimate for the whole account, so the parts can add up to a bit more than the total ('+all.toLocaleString('en-US')+' a day). Instagram does not split single Reels this way.</p>';
+  h+='<div class="tbl"><table><tr><th>Who</th><th>Accounts reached per day</th><th>Share</th></tr>';
+  rows.forEach(function(x){ h+='<tr><td><span class="sw" style="--c:'+x[2]+'"></span>'+esc(x[0])+'</td><td>'+igBar(x[1],Math.max(f,n,ad),x[2])+x[1].toLocaleString('en-US')+'</td><td>'+Math.round(x[1]/(x[0].indexOf('ads')>=0?(all||1):both)*100)+'%'+(x[0].indexOf('ads')>=0?' of all reach':'')+'</td></tr>'; });
+  return h+'</table></div>';
+}
+
+/* a Reel's format, from its length (Instagram has no label for it): FULL_FILM_SECONDS or longer = full film */
+var FULL_FILM_SECONDS=180;
+function igLen(s){ return typeof s==='number'?Math.floor(s/60)+':'+('0'+Math.round(s%60)).slice(-2):'—'; }
+function igFormat(s){ return typeof s==='number'?(s>=FULL_FILM_SECONDS?'Full film':'Highlight'):'—'; }
+var IGS=[['new','Newest'],['views','Views'],['reach','Reach'],['saves','Saves'],['shares','Shares'],['watch','Watch time'],['len','Length'],['skip','Lowest skip rate']];
 function igReels(){
   var s=S.igs||'new', L=IG.reels.slice(), all=!!S.igall, since=new Date(Date.now()-30*864e5).toISOString().slice(0,10);
-  L.sort(function(a,b){ return s==='new'?(a.posted<b.posted?1:-1):igNum(b[s])-igNum(a[s]); });
+  L.sort(function(a,b){
+    if(s==='new') return a.posted<b.posted?1:-1;
+    if(s==='skip'){ var x=typeof a.skip==='number'?a.skip:999, y=typeof b.skip==='number'?b.skip:999; return x-y; }   // lower skip rate = better
+    return igNum(b[s])-igNum(a[s]);
+  });
   var recent=IG.reels.filter(function(r){ return String(r.posted).slice(0,10)>=since; });
   var avg=recent.length?Math.round(recent.reduce(function(t,r){ return t+igNum(r.views); },0)/recent.length):null;
   var oldest=IG.reels.reduce(function(o,r){ return !o||r.posted<o?r.posted:o; },'');
   var h='<p class="lede">'+IG.reels.length+' Reels since '+esc(oldest?igDay(oldest.slice(0,10)):'—')+' · last 30 days: '+recent.length+' Reels, '+igN(avg)+' views each on average. '+
-        'Numbers keep growing: Reels from the last 30 days are re-read every morning, older ones once a week.</p>';
+        'Numbers keep growing: Reels from the last 30 days are re-read every morning, older ones once a week. '+
+        'Length is read from the video file; Instagram does not share the file for Reels with licensed music, so those show —. Format: 3 minutes or longer = Full film, shorter = Highlight. '+
+        'Skip rate = share of views that left in the first 3 seconds (Instagram’s estimate).</p>';
   h+='<div class="ctl" style="margin-bottom:8px">'+IGS.map(function(x){ return '<button class="chip'+(s===x[0]?' on':'')+'" onclick="S.igs=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>';
-  h+='<div class="tbl"><table><tr><th>Posted</th><th class="igcap">Reel</th><th>Views</th><th>Reach</th><th>Saves</th><th>Shares</th><th>Likes</th><th>Comments</th><th>Avg watch</th></tr>';
+  h+='<div class="tbl"><table><tr><th>Posted</th><th class="igcap">Reel</th><th>Length</th><th class="igcap">Format</th><th>Views</th><th>Reach</th><th>Skip rate</th><th>Saves</th><th>Shares</th><th>Likes</th><th>Comments</th><th>Avg watch</th></tr>';
   (all?L:L.slice(0,20)).forEach(function(r){
     var cap=String(r.cap||'').split('\n')[0]||'Reel', ok=/^https:\/\/www\.instagram\.com\//.test(r.link||'');
     h+='<tr><td>'+esc(igDay(String(r.posted).slice(0,10)))+'</td><td class="igcap">'+(ok?'<a href="'+esc(r.link)+'" target="_blank" rel="noopener">'+esc(cap)+' ↗</a>':esc(cap))+'</td>'+
-       '<td>'+igN(r.views)+'</td><td>'+igN(r.reach)+'</td><td>'+igN(r.saves)+'</td><td>'+igN(r.shares)+'</td><td>'+igN(r.likes)+'</td><td>'+igN(r.comments)+'</td>'+
+       '<td>'+igLen(r.len)+'</td><td class="igcap">'+igFormat(r.len)+'</td>'+
+       '<td>'+igN(r.views)+'</td><td>'+igN(r.reach)+'</td><td>'+(typeof r.skip==='number'?Math.round(r.skip)+'%':'—')+'</td>'+
+       '<td>'+igN(r.saves)+'</td><td>'+igN(r.shares)+'</td><td>'+igN(r.likes)+'</td><td>'+igN(r.comments)+'</td>'+
        '<td>'+(typeof r.watch==='number'?r.watch+' s':igN(r.watch))+'</td></tr>';
   });
   h+='</table></div>';
@@ -1758,6 +1789,7 @@ function renderInstagram(h){
   h+=igKpis();
   h+='<section class="sec"><h2>Does Instagram bring inquiries?</h2><p class="lede">Each month: the Reels you posted and how many views they have had so far, next to the inquiries that answered “Instagram” to “How did you hear about us?”. Pink = Reel views, blue = Instagram inquiries.</p>'+igMonths()+'</section>';
   h+='<section class="sec"><h2>Every day · last 30 days</h2>'+igDaily()+'</section>';
+  h+='<section class="sec"><h2>Who you reach · followers, non-followers and ads</h2>'+igWho()+'</section>';
   h+='<section class="sec"><h2>Reels</h2>'+igReels()+'</section>';
   h+='<section class="sec"><h2>Stories</h2>'+igStories()+'</section>';
   h+='<p class="note">How it is counted: numbers come straight from Instagram for @epweddingfilms. Reach = different accounts that saw it; views = times it was seen. '+
