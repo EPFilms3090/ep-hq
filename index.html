@@ -1539,6 +1539,29 @@ function clRedraw(){
   if(el) el.innerHTML=clTable(L.filter(function(r){ return (!q||r.name.toLowerCase().indexOf(q)>=0) && (f==='all'||r.booked===(f==='yes'?'Yes':'No')); }));
 }
 
+/* ---------- GA4 website leads (11/04/2026). Read only from Google Analytics: the generate_lead event (a visit to /thank-you after
+   the inquiry form). Counting starts 11/04/2026. Copied into the "GA4 leads" tab. Not a key event: nothing goes to Google Ads. */
+var GAP=[['month','This month'],['prev','Last month'],['all','Since 11/04/2026']];
+function gaTop(list,label){
+  var t='<table><tr><th>'+label+'</th><th>Website leads</th></tr>';
+  (list||[]).slice(0,15).forEach(function(x){ t+='<tr><td>'+esc(x.name)+'</td><td><b>'+x.n+'</b></td></tr>'; });
+  if(!(list||[]).length) t+='<tr><td colspan="2" class="dim">No website leads in this period yet.</td></tr>';
+  return t+'</table>';
+}
+function gaSection(){
+  var G=MK.ga, h='<section class="sec"><h2>GA4 website leads · form sent (generate_lead)</h2>';
+  if(!G||!G.months) return h+'<div class="warn-box">GA4 leads could not load.'+(G&&G.err?' '+esc(G.err):'')+'</div></section>';
+  h+='<p class="lede">From Google Analytics (EP Films GA4), read only: a website lead = a visit to the /thank-you page after the inquiry form. <b>Counting starts '+esc(ccUs(G.from))+'</b> — GA4 does not count older visits, so earlier months show nothing. New visits take GA4 about a day to show up. Copied into the “GA4 leads” tab of the EP Command Center sheet'+(G.updated?' (last copied '+esc(G.updated)+')':'')+'.</p>';
+  if(G.err) h+='<div class="warn-box">Could not read GA4 just now'+(/permission|authoriz|allow/i.test(G.err)?' — Rafael needs to allow Analytics access once':'')+': '+esc(G.err)+'</div>';
+  h+='<div class="tbl fit"><table><tr><th>Month</th><th>Website leads</th></tr>'+G.months.slice().reverse().map(function(m){ return '<tr><td>'+esc(monthName(m.month))+' '+m.month.slice(0,4)+(m.month===G.from.slice(0,7)?' <span class="dim">(from '+esc(ccUs(G.from))+')</span>':'')+'</td><td><b>'+m.leads+'</b></td></tr>'; }).join('')+'</table></div>';
+  var sel=S.gap||'month', P=G.periods[sel]||{total:0,landing:[],source:[]};
+  h+='<div class="ctl" style="margin:14px 0 8px">'+GAP.map(function(x){ return '<button class="chip'+(sel===x[0]?' on':'')+'" onclick="S.gap=\''+x[0]+'\';renderMarketing()">'+x[1]+' · '+((G.periods[x[0]]||{}).total||0)+'</button>'; }).join('')+'</div>';
+  h+='<div class="grid2"><div><h3 style="margin:4px 0 6px;font-size:15px">By landing page (first page of the visit)</h3><div class="tbl fit">'+gaTop(P.landing,'Landing page')+'</div></div>'+
+     '<div><h3 style="margin:4px 0 6px;font-size:15px">By source / medium</h3><div class="tbl fit">'+gaTop(P.source,'Source / medium')+'</div></div></div>';
+  h+='<p class="note">Counts every visit to a page with /thank-you in its address. These are website form sends, so they won’t match the Leads tab exactly (Leads also has calls, emails and repeat inquiries).</p>';
+  return h+'</section>';
+}
+
 /* ---------- Date checks & turn-downs. From the "AVAILABILITY REQUESTS" sheet (the website's availability calendar), read only,
    copied into the "Date checks" tabs. Fixed periods: this month so far, last month, last 7 days. A couple counts in the period of their first check. */
 var DCP=[['month','This month'],['prev','Last month'],['week','Last 7 days']];
@@ -1607,6 +1630,7 @@ function renderMarketing(){
   h+=adSection();
   h+=pfSection();
   h+=clSection();
+  h+=gaSection();
   h+=dcSection();
   var mlabel=(MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1], yr=sel.slice(0,4);
   h+='<section class="sec"><h2>'+esc(mlabel)+' by '+(t==='month'?'month':t==='quarter'?'quarter':'year')+(t==='year'?'':' · '+yr+' against '+(+yr-1))+'</h2>'+
