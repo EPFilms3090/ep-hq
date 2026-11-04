@@ -244,6 +244,11 @@
   .mk .be input{font:inherit;font-size:15px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--field);color:var(--ink);width:100%;box-sizing:border-box}
   .mk .be input:focus-visible{outline:2px solid var(--c-margin);outline-offset:1px}
   .mk .whatif{display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#1A1405;background:var(--c-margin);border-radius:999px;padding:3px 10px;margin:0 0 8px}
+  /* Instagram tab inside Marketing (added 11/04/2026) */
+  .mk{--c-ig:#F58FB5}
+  .mk .igbar{display:inline-block;height:8px;border-radius:4px;margin-right:8px;vertical-align:1px}
+  .mk th.igcap,.mk td.igcap{text-align:left;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  .mk td.igcap a{color:var(--ink);text-decoration:none} .mk td.igcap a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -278,7 +283,9 @@ function saveCopy(d){ try { localStorage.setItem(cacheKey(), JSON.stringify({ t:
 function readCopy(){ try { var x = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return x && x.d && (Date.now() - x.t) < 7*864e5 ? x : null; } catch (e) { return null; } }
 var CONNECTED = !!BOOT && (!!API || !!(window.google && google.script));
 var S = { data:null, open:{}, q:'', filter:'all', confirm:'', view:'edit', bq:'', bfilter:'all', bmonth:'cur' };
-try { var hv = location.hash==='#brides' ? 'brides' : location.hash==='#marketing' ? 'mkt' : '', lv = localStorage.getItem('ep_view'); S.view = hv || (lv==='brides'||lv==='mkt' ? lv : 'edit'); } catch (e) {}
+try { var hv = location.hash==='#brides' ? 'brides' : location.hash==='#marketing'||location.hash==='#instagram' ? 'mkt' : '', lv = localStorage.getItem('ep_view'); S.view = hv || (lv==='brides'||lv==='mkt' ? lv : 'edit'); } catch (e) {}
+/* Marketing has two tabs: Business (the funnel) and Instagram. #instagram opens Instagram, #marketing opens Business, otherwise the last one used. */
+try { S.mtab = location.hash==='#instagram' ? 'ig' : location.hash==='#marketing' ? 'biz' : (localStorage.getItem('ep_mtab')==='ig' ? 'ig' : 'biz'); } catch (e) { S.mtab = 'biz'; }
 /* 4 columns, left to right the way a wedding moves. "Your turn" = Rafael: pick up delivered videos and upload them to
    MediaZilla, and do revisions. Maga sends only what is already on MediaZilla. Closed weddings fold away under the board. */
 var LANES = [['start','Coming up & footage'], ['editors','With editors'], ['mine','Your turn'], ['rev','In revision'], ['maga','Maga sends']];   // In revision: added 11/02/2026
@@ -879,7 +886,7 @@ function viewSwitch(){
   var b=function(id,label){ return '<button role="tab" aria-selected="'+(v===id)+'" class="'+(v===id?'on':'')+'" onclick="setView(\''+id+'\')">'+label+'</button>'; };
   return '<span class="views" role="tablist">'+b('edit','Editing')+(S.data.pipeline?b('brides','Brides'):'')+(mk?b('mkt','Marketing'):'')+'</span>';
 }
-function setView(v){ S.view=v; try{ localStorage.setItem('ep_view',v); history.replaceState(null,'',v==='brides'?'#brides':v==='mkt'?'#marketing':location.pathname+location.search); }catch(e){} render(); window.scrollTo(0,0); }
+function setView(v){ S.view=v; try{ localStorage.setItem('ep_view',v); history.replaceState(null,'',v==='brides'?'#brides':v==='mkt'?(S.mtab==='ig'?'#instagram':'#marketing'):location.pathname+location.search); }catch(e){} render(); window.scrollTo(0,0); }
 function bMonth(){ var M=(S.data.pipeline||{}).month||{}; return S.bmonth==='prev'?M.prev:M.cur; }
 function inLane(x,l,m){ var a=x.lanes||[]; return a.indexOf(l+'@'+m)>=0 || ((l==='sent'||l==='signed') && a.indexOf(l+'@open')>=0); }
 /* One small chart per parameter: last month (all of it) against this month so far.
@@ -1567,8 +1574,11 @@ function dcSection(){
 function ccUs(iso){ return iso?String(iso).slice(5,7)+'/'+String(iso).slice(8,10)+'/'+String(iso).slice(0,4):'—'; }
 
 function renderMarketing(){
-  var d=S.data, h='<header><div><h1>Marketing <span class="ver">alpha 2</span></h1><div class="sub">Only you see this · today '+esc(d.today)+(MK&&MK.updated?' · emails read '+esc(MK.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM</div></div>'+
-    '<div class="row" style="margin:0">'+viewSwitch()+'<button class="chip" onclick="MK=null;loadMkt();renderMarketing()">Refresh</button></div></header>';
+  var d=S.data, ig=S.mtab==='ig';
+  var h='<header><div><h1>'+(ig?'Instagram <span class="ver">new</span>':'Marketing <span class="ver">alpha 2</span>')+'</h1><div class="sub">Only you see this · today '+esc(d.today)+
+    (ig?' · Stories read every hour, Reels and account every morning':(MK&&MK.updated?' · emails read '+esc(MK.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM')+'</div></div>'+
+    '<div class="row" style="margin:0">'+viewSwitch()+mkTabs()+'<button class="chip" onclick="'+(ig?'IG=null;loadIg();renderMarketing()':'MK=null;loadMkt();renderMarketing()')+'">Refresh</button></div></header>';
+  if(ig) return renderInstagram(h);
   if(!MK){
     h+=MKERR?'<div class="warn-box">Marketing could not load: '+esc(MKERR)+' <button class="chip" onclick="loadMkt();renderMarketing()">Try again</button></div>':'<p class="sub">Loading the numbers…</p>';
     document.getElementById('app').innerHTML=h; if(!MKERR) loadMkt(); return;
@@ -1623,6 +1633,137 @@ function renderMarketing(){
      (MK.history&&MK.history.rows?'Last year: '+MK.history.rows+' brides from your emails, October 2024 to December 2025 (bookings from emails only, so they can be 1–2 off per month).':'')+'</p>';
   h+='</div>';
   document.getElementById('app').innerHTML=h;
+}
+
+/* ---------------------------------------------------- Instagram (a tab inside Marketing, only Rafael): @epweddingfilms numbers from the
+   "EP Instagram" Google Sheet (info@ephoustonfilms.com). Its script reads Instagram with the read-only EPStatsRobot key: Stories every hour
+   (they disappear after 24 h), Reels and the account every morning. The sheet's web address only answers with Rafael's key. Added 11/04/2026. */
+var IG_API='https://script.google.com/macros/s/AKfycbz8dkIqpFMZhykAvzYBh9IDH7gbg73H7-QMD78ya4rsoaF2PErc-eKPKR52s8P5srf5/exec';
+var IG=null, IGERR='', IGBUSY=false;
+function loadIg(){
+  if(IGBUSY) return; IGBUSY=true; IGERR='';
+  var again=function(){ if(S.view==='mkt'&&S.mtab==='ig') renderMarketing(); };
+  fetchWithTimeout(IG_API+'?k='+encodeURIComponent(BOOT.k),40000)
+    .then(function(r){ if(!r.ok) throw new Error('The Instagram sheet did not answer ('+r.status+').'); return r.json(); })
+    .then(function(j){ IGBUSY=false; if(j&&j.error) throw new Error(j.error); IG=j.result; again(); })
+    .catch(function(e){ IGBUSY=false; IGERR=e&&e.name==='AbortError'?'Google is taking too long to answer.':String((e&&e.message)||e); again(); });
+}
+function mkTabs(){
+  var t=S.mtab==='ig'?'ig':'biz';
+  return '<span class="views" role="tablist">'+[['biz','Business'],['ig','Instagram']].map(function(x){ return '<button role="tab" aria-selected="'+(t===x[0])+'" class="'+(t===x[0]?'on':'')+'" onclick="setMkTab(\''+x[0]+'\')">'+x[1]+'</button>'; }).join('')+'</span>';
+}
+function setMkTab(t){ S.mtab=t; try{ localStorage.setItem('ep_mtab',t); history.replaceState(null,'',t==='ig'?'#instagram':'#marketing'); }catch(e){} renderMarketing(); window.scrollTo(0,0); }
+function igNum(v){ return typeof v==='number'?v:0; }
+function igN(v){ return v===null||v===undefined||v===''?'—':typeof v==='number'?v.toLocaleString('en-US'):esc(v); }   // '<5' = Instagram hides numbers under 5
+function igDay(iso){ return monthName(iso,1)+' '+(+iso.slice(8,10))+(iso.slice(0,4)!==todayIso().slice(0,4)?' '+iso.slice(0,4):''); }
+function igWhen(iso){ if(!iso) return '—'; var hh=+iso.slice(11,13); return igDay(iso)+(iso.length>10?', '+((hh%12)||12)+':'+iso.slice(14,16)+' '+(hh<12?'AM':'PM'):''); }
+function igBar(v,max,c){ return '<span class="igbar" style="width:'+Math.max(v?3:0,Math.round(70*v/(max||1)))+'px;background:'+c+'"></span>'; }
+function igDays(){ return IG.account.slice().sort(function(a,b){ return a.date<b.date?-1:1; }); }
+/* inquiries whose “How did you hear about us?” says Instagram, from the Business tab's numbers (null = that month has no data) */
+function igInq(m,f){ var x=MK&&mkHas(m)&&MK.m[m][f||'src']; if(!x) return null; var s=0; Object.keys(x).forEach(function(n){ if(/insta/i.test(n)) s+=x[n]; }); return s; }
+
+function igKpis(){
+  var A=igDays(), last=A.slice(-30), tot=null, i, n=last.length;
+  for(i=A.length-1;i>=0;i--) if(typeof A[i].followers==='number'){ tot=A[i]; break; }
+  function sum(k){ return last.reduce(function(s,r){ return s+igNum(r[k]); },0); }
+  var cur=todayIso().slice(0,7), inq=igInq(cur);
+  var k=[['Followers',tot?tot.followers:null,tot?'on '+igDay(tot.date):''],
+         ['New followers',n?sum('newF'):null,'last '+n+' days'],
+         ['Profile visits',n?sum('pv'):null,'last '+n+' days'],
+         ['Bio link taps',n?sum('bio'):null,'last '+n+' days · the link in your bio'],
+         ['Reach per day',n?Math.round(sum('reach')/n):null,'average of the last '+n+' days'],
+         ['Instagram inquiries',inq,MK?monthName(cur)+' so far · “How did you hear about us?”':'loading from the Business tab…']];
+  return '<div class="kpis">'+k.map(function(x){ return '<div class="kpi" style="--c:var(--c-ig)"><div class="k">'+x[0]+'</div><div class="v">'+igN(x[1])+'</div><div class="s">'+esc(x[2])+'</div></div>'; }).join('')+'</div>'+
+    (n?'<p class="note" style="margin:8px 0 0">Days counted: '+esc(igDay(last[0].date))+' – '+esc(igDay(last[n-1].date))+'. Instagram can take up to 2 days to finish a day’s numbers.</p>':'');
+}
+
+/* the main view: Reels posted and their views next to the inquiries that said Instagram, month by month */
+function igMonths(){
+  var cur=todayIso().slice(0,7), ms=[], m=cur, R={}, maxV=1, maxI=1;
+  for(var i=0;i<12;i++){ ms.push(m); m=mkPrev(m); }
+  IG.reels.forEach(function(r){ var k=String(r.posted).slice(0,7); R[k]=R[k]||{n:0,v:0}; R[k].n++; R[k].v+=igNum(r.views); });
+  ms.forEach(function(k){ maxV=Math.max(maxV,(R[k]||{}).v||0); maxI=Math.max(maxI,igInq(k)||0); });
+  var h='<div class="tbl"><table><tr><th>Month</th><th>Reels posted</th><th>Views of those Reels</th><th>Instagram inquiries</th><th>Booked from Instagram</th></tr>';
+  ms.forEach(function(k){
+    var r=R[k]||{n:0,v:0}, q=igInq(k), b=igInq(k,'bsrc');
+    h+='<tr'+(k===cur?' class="sel"':'')+'><td>'+esc(mkName(k))+(k===cur?' <span class="dim">(so far)</span>':'')+'</td><td>'+r.n+'</td><td>'+igBar(r.v,maxV,'var(--c-ig)')+igN(r.v)+'</td>'+
+       '<td>'+(q===null?'<span class="dim">'+(MK?'no data':'…')+'</span>':igBar(q,maxI,'var(--c-new)')+q)+'</td><td>'+(b===null?'<span class="dim">—</span>':b)+'</td></tr>';
+  });
+  return h+'</table></div>';
+}
+
+var IGD=[['reach','Reach'],['views','Views'],['pv','Profile visits'],['bio','Bio link taps'],['newF','New followers'],['inter','Interactions']];
+function igDaily(){
+  var k=S.igd||'reach', A=igDays().slice(-30), lab=(IGD.filter(function(x){ return x[0]===k; })[0]||IGD[0])[1];
+  var h='<div class="ctl" style="margin-bottom:8px">'+IGD.map(function(x){ return '<button class="chip'+(k===x[0]?' on':'')+'" onclick="S.igd=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>';
+  if(!A.length) return h+'<p class="sub">No days yet.</p>';
+  var max=1, W=720, H=170, bw=W/A.length, tot=0;
+  A.forEach(function(r){ max=Math.max(max,igNum(r[k])); tot+=igNum(r[k]); });
+  h+='<p class="lede">'+esc(lab)+': '+tot.toLocaleString('en-US')+' in '+A.length+' days · busiest day '+max.toLocaleString('en-US')+'. Hover a bar for the day.</p>';
+  h+='<svg viewBox="0 0 '+W+' '+(H+22)+'" role="img" aria-label="'+esc(lab)+' per day, last '+A.length+' days">';
+  A.forEach(function(r,i){
+    var v=igNum(r[k]), bh=Math.round((H-6)*v/max), x=i*bw;
+    h+='<rect x="'+(x+1.5).toFixed(1)+'" y="'+(H-bh)+'" width="'+Math.max(2,bw-3).toFixed(1)+'" height="'+bh+'" rx="3" fill="var(--c-ig)"><title>'+esc(igDay(r.date)+': '+v.toLocaleString('en-US')+' '+lab.toLowerCase())+'</title></rect>';
+    if(i%7===0) h+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H+17)+'" text-anchor="middle">'+esc(igDay(r.date))+'</text>';
+  });
+  return h+'</svg>';
+}
+
+var IGS=[['new','Newest'],['views','Views'],['reach','Reach'],['saves','Saves'],['shares','Shares'],['watch','Watch time']];
+function igReels(){
+  var s=S.igs||'new', L=IG.reels.slice(), all=!!S.igall, since=new Date(Date.now()-30*864e5).toISOString().slice(0,10);
+  L.sort(function(a,b){ return s==='new'?(a.posted<b.posted?1:-1):igNum(b[s])-igNum(a[s]); });
+  var recent=IG.reels.filter(function(r){ return String(r.posted).slice(0,10)>=since; });
+  var avg=recent.length?Math.round(recent.reduce(function(t,r){ return t+igNum(r.views); },0)/recent.length):null;
+  var oldest=IG.reels.reduce(function(o,r){ return !o||r.posted<o?r.posted:o; },'');
+  var h='<p class="lede">'+IG.reels.length+' Reels since '+esc(oldest?igDay(oldest.slice(0,10)):'—')+' · last 30 days: '+recent.length+' Reels, '+igN(avg)+' views each on average. '+
+        'Numbers keep growing: Reels from the last 30 days are re-read every morning, older ones once a week.</p>';
+  h+='<div class="ctl" style="margin-bottom:8px">'+IGS.map(function(x){ return '<button class="chip'+(s===x[0]?' on':'')+'" onclick="S.igs=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>';
+  h+='<div class="tbl"><table><tr><th>Posted</th><th class="igcap">Reel</th><th>Views</th><th>Reach</th><th>Saves</th><th>Shares</th><th>Likes</th><th>Comments</th><th>Avg watch</th></tr>';
+  (all?L:L.slice(0,20)).forEach(function(r){
+    var cap=String(r.cap||'').split('\n')[0]||'Reel', ok=/^https:\/\/www\.instagram\.com\//.test(r.link||'');
+    h+='<tr><td>'+esc(igDay(String(r.posted).slice(0,10)))+'</td><td class="igcap">'+(ok?'<a href="'+esc(r.link)+'" target="_blank" rel="noopener">'+esc(cap)+' ↗</a>':esc(cap))+'</td>'+
+       '<td>'+igN(r.views)+'</td><td>'+igN(r.reach)+'</td><td>'+igN(r.saves)+'</td><td>'+igN(r.shares)+'</td><td>'+igN(r.likes)+'</td><td>'+igN(r.comments)+'</td>'+
+       '<td>'+(typeof r.watch==='number'?r.watch+' s':igN(r.watch))+'</td></tr>';
+  });
+  h+='</table></div>';
+  if(L.length>20) h+='<div class="ctl" style="margin-top:10px"><button class="chip" onclick="S.igall=!S.igall;renderMarketing()">'+(all?'Show the top 20':'Show all '+L.length)+'</button></div>';
+  return h;
+}
+
+function igStories(){
+  var L=IG.stories.slice().sort(function(a,b){ return a.posted<b.posted?1:-1; }), all=!!S.igsall;
+  if(!L.length) return '<p class="sub">No Stories yet. They show here within an hour of posting.</p>';
+  var h='<p class="lede">Read every hour while the Story is up; the last reading is kept after it disappears. Exit rate = exits out of views (lower is better). “&lt;5” = Instagram hides numbers under 5.</p>';
+  h+='<div class="tbl"><table><tr><th>Posted</th><th>Views</th><th>Reach</th><th>Taps forward</th><th>Taps back</th><th>Exits</th><th>Exit rate</th><th>Next story</th><th>Link taps</th><th>Replies</th><th>Profile visits</th><th>Follows</th></tr>';
+  (all?L:L.slice(0,30)).forEach(function(r){
+    var er=typeof r.exits==='number'&&typeof r.views==='number'&&r.views>0?Math.round(r.exits/r.views*100)+'%':'—';
+    h+='<tr><td>'+esc(igWhen(r.posted))+'</td><td>'+igN(r.views)+'</td><td>'+igN(r.reach)+'</td><td>'+igN(r.fwd)+'</td><td>'+igN(r.back)+'</td><td>'+igN(r.exits)+'</td><td>'+er+'</td>'+
+       '<td>'+igN(r.next)+'</td><td>'+igN(r.taps)+'</td><td>'+igN(r.replies)+'</td><td>'+igN(r.pv)+'</td><td>'+igN(r.follows)+'</td></tr>';
+  });
+  h+='</table></div>';
+  if(L.length>30) h+='<div class="ctl" style="margin-top:10px"><button class="chip" onclick="S.igsall=!S.igsall;renderMarketing()">'+(all?'Show the last 30':'Show all '+L.length)+'</button></div>';
+  return h;
+}
+
+function renderInstagram(h){
+  h+='<div class="mk">';
+  if(!IG){
+    h+=IGERR?'<div class="warn-box">Instagram could not load: '+esc(IGERR)+' <button class="chip" onclick="loadIg();renderMarketing()">Try again</button></div>':'<p class="sub">Loading the Instagram numbers…</p>';
+    document.getElementById('app').innerHTML=h+'</div>'; if(!IGERR) loadIg(); return;
+  }
+  if(!MK&&!MKBUSY&&!MKERR) loadMkt();   // the inquiries come from the Business tab's numbers
+  var u=IG.updated||{};
+  h+='<p class="sub" style="margin:0">@epweddingfilms · last read: Stories '+esc(u.stories||'—')+' · Reels '+esc(u.reels||'—')+' · account '+esc(u.account||'—')+'</p>';
+  h+=igKpis();
+  h+='<section class="sec"><h2>Does Instagram bring inquiries?</h2><p class="lede">Each month: the Reels you posted and how many views they have had so far, next to the inquiries that answered “Instagram” to “How did you hear about us?”. Pink = Reel views, blue = Instagram inquiries.</p>'+igMonths()+'</section>';
+  h+='<section class="sec"><h2>Every day · last 30 days</h2>'+igDaily()+'</section>';
+  h+='<section class="sec"><h2>Reels</h2>'+igReels()+'</section>';
+  h+='<section class="sec"><h2>Stories</h2>'+igStories()+'</section>';
+  h+='<p class="note">How it is counted: numbers come straight from Instagram for @epweddingfilms. Reach = different accounts that saw it; views = times it was seen. '+
+     'Instagram does not give follows or profile visits for single Reels. Profile visits and bio link taps for the whole account are not in Instagram’s official list, so Instagram could stop sending them; the boxes would then show “—”. '+
+     'Daily numbers start October 5, 2026 (the 30 days before the connection went live on November 4); Stories start November 4.</p>';
+  document.getElementById('app').innerHTML=h+'</div>';
 }
 
 function render(){ if(!S.data) return; if(S.data.role==='Rafael'||S.data.role==='Assistant'){ if(S.view==='mkt'&&S.data.role==='Rafael') renderMarketing(); else if(S.view==='brides'&&S.data.pipeline) renderBrides(); else renderBoard(); } else renderEditor(); }
