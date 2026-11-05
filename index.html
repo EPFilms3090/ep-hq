@@ -1596,6 +1596,94 @@ function dcSection(){
 }
 function ccUs(iso){ return iso?String(iso).slice(5,7)+'/'+String(iso).slice(8,10)+'/'+String(iso).slice(0,4):'—'; }
 
+/* ---------- Google search · FROM SEARCH CONSOLE (11/05/2026, approved by Rafael in writing). Read only: Google Search Console,
+   epfilmsweddings.com (the domain property). The separate “EP Search Console” script (info@ephoustonfilms.com) copies it every morning at
+   7 AM into the “Search Console - daily / searches / pages” tabs of the EP Command Center sheet, 16 months back. Follows the period picked
+   at the top (month / quarter / year). Google runs 2–3 days behind, so a month in progress stops at Google's latest day. */
+var SCW=[['houston wedding videographer','Houston'],['wedding videographer houston','Houston'],['houston wedding videographers','Houston'],['wedding videography houston','Houston'],['wedding videographers in houston','Houston'],['cinematic wedding videography houston','Houston'],
+  ['dallas wedding videographer','Dallas'],['wedding videographer dallas','Dallas'],['wedding videographers dallas','Dallas'],['dallas wedding videography','Dallas'],['marriage videographer dallas','Dallas'],['wedding videographer','Any city']];
+function scNum(v){ return v===null||v===undefined||!isFinite(v)?'—':Math.round(v).toLocaleString('en-US'); }
+function scPos(v){ return v===null||v===undefined||!isFinite(v)?'—':(Math.round(v*10)/10).toFixed(1); }
+function scWhere(p){ return p===null||p===undefined||!isFinite(p)?'':p<=3.5?'top 3':p<=10.5?'page 1':p<=20.5?'page 2':'page 3+'; }
+/* which months (and days) of a period to count. A period in progress stops at Google's latest day, and every comparison stops at the
+   same point. If Google has no day of this month yet, the period stops at the end of last month instead. */
+function scWin(t,key,fair){
+  var G=MK.sc, ms=pMonths(t,key), idx=fair?pIdx():-1;
+  if(idx<0) return {ms:ms, cutIdx:-1, label:pName(t,key,true)};
+  if(G.cutDay) return {ms:ms.slice(0,idx+1), cutIdx:idx, label:pName(t,key,true)+(t==='month'?' 1–'+G.cutDay:' to '+monthName(ms[idx],1)+' '+G.cutDay)};
+  if(!idx) return {ms:[], cutIdx:-1, empty:true, label:pName(t,key,true)};
+  return {ms:ms.slice(0,idx), cutIdx:-1, label:pName(t,key,true)+' to the end of '+monthName(ms[idx-1],1)};
+}
+/* clicks, times shown and average position of a period, from the daily copy; the month in progress stops at Google's latest day */
+function scVal(t,key,fair){
+  var G=MK.sc, w=scWin(t,key,fair), c=0, im=0, pw=0, any=false, lastM=G.last.slice(0,7);
+  if(w.empty) return null;
+  for(var j=0;j<w.ms.length;j++){
+    var m=w.ms[j], cutting=j===w.cutIdx;
+    if(m<G.firstFull||m>lastM) return null;
+    var cut=cutting?G.cutDay:99;
+    (G.byMonth[m]||[]).forEach(function(d){ if(+d[0].slice(8,10)<=cut){ c+=d[1]; im+=d[2]; pw+=d[3]*d[2]; any=true; } });
+  }
+  return {c:c, i:im, p:im?pw/im:null, any:any};
+}
+/* searches and pages of whole months (the month in progress up to Google's latest day) */
+function scAgg(ms){
+  var G=MK.sc, n=0, bc=0, qc=0, w={}, top={}, pg={};
+  function add(o,k,c,i,p){ var a=o[k]||(o[k]=[0,0,0]); a[0]+=c; a[1]+=i; a[2]+=p*i; }
+  ms.forEach(function(m){ var x=G.months[m]; if(!x||m<G.firstFull) return; n++; bc+=x.bc; qc+=x.qc;
+    Object.keys(x.watch).forEach(function(q){ var v=x.watch[q]; add(w,q,v[0],v[1],v[2]); });
+    x.top.forEach(function(r){ add(top,r[0],r[1],r[2],r[3]); });
+    x.pages.forEach(function(r){ add(pg,r[0],r[1],r[2],r[3]); });
+  });
+  function obj(a){ return {c:a[0], i:a[1], p:a[1]?a[2]/a[1]:null}; }
+  function list(o){ return Object.keys(o).map(function(k){ var x=obj(o[k]); x.k=k; return x; }).sort(function(a,b){ return (b.c-a.c)||(b.i-a.i); }); }
+  var wo={}; Object.keys(w).forEach(function(q){ wo[q]=obj(w[q]); });
+  return {n:n, bc:bc, qc:qc, w:wo, top:list(top), pages:list(pg)};
+}
+function scChip(label,a,b,lowerBetter){
+  if(a===null||a===undefined||b===null||b===undefined||!isFinite(a)||!isFinite(b)) return '<span class="dl">vs '+esc(label)+': <b>no data</b></span>';
+  var d=a-b, c=!d?'':((d<0)===!!lowerBetter?'up':'down'), t;
+  if(lowerBetter){ var r=Math.round(Math.abs(d)*10)/10; t=!r?'= same place':(d<0?'▲ '+r.toFixed(1)+' places higher':'▼ '+r.toFixed(1)+' places lower'); if(!r) c=''; }
+  else t=!d?'= 0':(d>0?'▲ +':'▼ ')+Math.round(d).toLocaleString('en-US')+(b?' ('+(d>0?'+':'')+Math.round(d/b*100)+'%)':'');
+  return '<span class="dl '+c+'">vs '+esc(label)+': <b>'+esc(t)+'</b></span>';
+}
+function scPageName(u){
+  u=String(u||''); if(/epfilms-GMB/i.test(u)) return 'Google Business Profile link (home page)';
+  var p=u.replace(/^https?:\/\/(www\.)?epfilmsweddings\.com/i,'').split('?')[0]; return p===''||p==='/'?'Home page':p;
+}
+function scSection(){
+  var G=MK.sc, h='<section class="sec"><h2>Google search · from Search Console</h2>';
+  if(!G||!G.byMonth||!G.last) return h+'<div class="warn-box">The Search Console numbers could not load.'+(G&&G.err?' '+esc(G.err):'')+'</div></section>';
+  G.cutDay=G.last.slice(0,7)===MK.cur?+G.last.slice(8,10):0;
+  var t=mkT(), sel=pSel(), fair=pFair(), cm=mkCmps();
+  function lbl(k){ return scWin(t,k,fair).label; }
+  h+='<p class="lede"><b>These numbers come from Google Search Console</b> (epfilmsweddings.com), not from GA4: how often Google showed your site and how often people clicked it on Google search. Read only. Copied every morning at 7 AM by the “EP Search Console” script into the “Search Console - …” tabs of the EP Command Center sheet (last copy '+esc(G.saved||'—')+'). Google runs 2–3 days behind: its latest day is '+esc(ccUs(G.last))+'. History starts '+esc(ccUs(G.firstFull+'-01'))+'.</p>';
+  if(G.err) h+='<div class="warn-box">'+esc(G.err)+'</div>';
+  if(fair&&!G.cutDay) h+='<div class="warn-box">Google has no days for '+esc(mkName(MK.cur))+' yet (it runs 2–3 days behind). '+(t==='month'?'Pick last month above to see a full month.':'This '+t+' is counted to the end of last month.')+'</div>';
+  var a=scVal(t,sel,fair);
+  h+='<div class="kpis">'+[['Clicks from Google','c',false,'--c-booked'],['Times shown on Google','i',false,'--c-new'],['Average position','p',true,'--c-call']].map(function(x){
+    var v=a?a[x[1]]:null;
+    return '<div class="kpi" style="--c:var('+x[3]+')"><div class="k">'+x[0]+'</div><div class="v">'+(x[1]==='p'?scPos(v):scNum(v))+'</div><div class="chips">'+
+      cm.map(function(c){ var b=scVal(t,c[0],fair); return scChip(lbl(c[0]),v,b?b[x[1]]:null,x[2]); }).join('')+'</div>'+
+      (x[1]==='p'?'<div class="s">1 = top of Google. Lower is better.</div>':'')+'</div>';
+  }).join('');
+  var ag=scAgg(scWin(t,sel,fair).ms);
+  h+='<div class="kpi" style="--c:var(--c-signed)"><div class="k">Clicks from people typing your name</div><div class="v">'+(ag.qc?Math.round(ag.bc/ag.qc*100)+'%':'—')+'</div><div class="s"><b>'+scNum(ag.bc)+'</b> of '+scNum(ag.qc)+' clicks with a known search (“ep films”, “ep wedding films”…)</div></div></div>';
+  var ly=pLY(t,sel), agl=scAgg(pMonths(t,ly));
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Your watch list · '+esc(lbl(sel))+'</h3><div class="tbl fit"><table><tr><th>Search</th><th>City</th><th>Times shown</th><th>Clicks</th><th>Average position</th><th>Position, '+esc(pName(t,ly,true))+'</th></tr>';
+  SCW.forEach(function(w){
+    var x=ag.w[w[0]], y=agl.w[w[0]], p=x&&x.i?x.p:null, py=y&&y.i?y.p:null;
+    h+='<tr><td>'+esc(w[0])+'</td><td>'+esc(w[1])+'</td><td>'+scNum(x?x.i:0)+'</td><td><b>'+scNum(x?x.c:0)+'</b></td><td><b>'+scPos(p)+'</b> <span class="dim">'+scWhere(p)+'</span></td><td>'+(agl.n?scPos(py)+' <span class="dim">'+scWhere(py)+'</span>':'<span class="dim">no data</span>')+'</td></tr>';
+  });
+  h+='</table></div>';
+  h+='<div class="grid2"><div><h3 style="margin:16px 0 6px;font-size:15px">Top searches that are not your name</h3><div class="tbl fit"><table><tr><th>Search</th><th>Clicks</th><th>Times shown</th><th>Avg position</th></tr>'+
+     (ag.top.length?ag.top.slice(0,12).map(function(r){ return '<tr><td>'+esc(r.k)+'</td><td><b>'+scNum(r.c)+'</b></td><td>'+scNum(r.i)+'</td><td>'+scPos(r.p)+'</td></tr>'; }).join(''):'<tr><td colspan="4" class="dim">No searches in this period.</td></tr>')+'</table></div></div>'+
+     '<div><h3 style="margin:16px 0 6px;font-size:15px">Pages people clicked</h3><div class="tbl fit"><table><tr><th>Page</th><th>Clicks</th><th>Times shown</th><th>Avg position</th></tr>'+
+     (ag.pages.length?ag.pages.slice(0,10).map(function(r){ return '<tr><td>'+esc(scPageName(r.k))+'</td><td><b>'+scNum(r.c)+'</b></td><td>'+scNum(r.i)+'</td><td>'+scPos(r.p)+'</td></tr>'; }).join(''):'<tr><td colspan="4" class="dim">No pages in this period.</td></tr>')+'</table></div></div></div>';
+  h+='<p class="note">From Google Search Console, so it will not match GA4 exactly: Search Console counts clicks on Google’s own results; GA4 counts visits to the website from every search engine. Average position = where you showed on Google on average (1 = top). Searches Google hides for privacy are left out of the search lists, so they add up to less than the total. The watch list, top searches and pages use whole months (the month in progress up to Google’s latest day); the cards above compare the same days.</p>';
+  return h+'</section>';
+}
+
 function renderMarketing(){
   var d=S.data, ig=S.mtab==='ig';
   var h='<header><div><h1>'+(ig?'Instagram <span class="ver">new</span>':'Marketing <span class="ver">alpha 2</span>')+'</h1><div class="sub">Only you see this · today '+esc(d.today)+
@@ -1631,6 +1719,7 @@ function renderMarketing(){
   h+=pfSection();
   h+=clSection();
   h+=gaSection();
+  h+=scSection(); // Google search, FROM SEARCH CONSOLE (11/05/2026)
   h+=dcSection();
   var mlabel=(MKM.filter(function(x){return x[0]===(S.mmet||'new');})[0]||MKM[0])[1], yr=sel.slice(0,4);
   h+='<section class="sec"><h2>'+esc(mlabel)+' by '+(t==='month'?'month':t==='quarter'?'quarter':'year')+(t==='year'?'':' · '+yr+' against '+(+yr-1))+'</h2>'+
