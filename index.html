@@ -359,7 +359,7 @@ function twice(id,fn){ if(S.confirm===id){ S.confirm=''; fn(); } else { S.confir
 
 function pill(v,showEd){
   if(showEd && v.sent) return '<span class="pill s-done">'+esc(v.label+' · sent to the couple '+v.sent)+'</span>';
-  var txt = v.label + (showEd? ' · '+(v.editor==='ASK'?'choose editor':v.editor):'') +
+  var txt = v.label + (v.len? ' ('+v.len+')':'') + (showEd? ' · '+(v.editor==='ASK'?'choose editor':v.editor):'') +
     (v.done? ' · delivered '+v.done+(showEd&&v.rev?' · revised '+v.rev+'x':'')+(showEd&&v.pickup?' · pick up':'') : (v.status==='waiting'?'':(showEd&&v.given===''?' · not handed over yet':'')+' · due '+v.due));
   return '<span class="pill s-'+esc(showEd&&v.pickup?'due':v.status)+'">'+esc(txt)+'</span>';
 }
