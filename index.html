@@ -1347,15 +1347,16 @@ function mkLeadHist(){
 function adOn(){ return !!(MK&&MK.ads&&MK.ads.m); }
 function adUsd(x){ return x===null||x===undefined||isNaN(x)?'—':'$'+Number(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function adSum(t,key,fair){
-  var ms=pMonths(t,key), idx=fair?pIdx():-1, o={meta:0,google:0,days:0,have:0,c:0,city:{}};
+  var ms=pMonths(t,key), idx=fair?pIdx():-1, o={meta:0,google:0,boost:0,bHave:0,days:0,have:0,c:0,city:{}};
   if(idx>=0) ms=ms.slice(0,idx+1);
   for(var i=0;i<ms.length;i++){
     var m=MK.ads.m[ms[i]]; if(!m) return null;
     var x=(idx>=0&&i===idx)?m.u:m.n;
     o.meta+=x.meta; o.google+=x.google; o.days+=x.days; o.have+=x.have; o.c+=x.c; if(x.bf) o.bf=true;
+    o.boost+=x.boost||0; o.bHave+=x.bHave||0;                       // boosted Instagram posts (acct 305666896), 11/05/2026
     Object.keys(x.city).forEach(function(k){ o.city[k]=(o.city[k]||0)+x.city[k]; });
   }
-  o.total=o.meta+o.google; o.gap=o.days-o.have;
+  o.total=o.meta+o.google+o.boost; o.gap=o.days-o.have; o.bGap=Math.max(0,o.days-o.bHave);   // bGap: days with no boosted number (total incomplete)
   o.daily=o.days?o.total/o.days:null; o.monthly=o.daily===null?null:o.daily*30.4;
   o.cpc=o.c?o.total/o.c:null;
   return o;
@@ -1381,21 +1382,26 @@ function adSection(){
   if(!adOn()||!A.rows) return h+'<div class="warn-box">No ad spend in EP HQ yet. It arrives with the 3am daily ads report.'+(A&&A.err?' Last problem: '+esc(A.err):'')+'</div></section>';
   var a=adSum(t,sel,fair), cols=cm.map(function(c){ return {key:c[0],name:c[1],v:adSum(t,c[0],fair)}; });
   h+='<p class="lede">'+esc(adLabel(t,sel,fair))+(fair?' — spend is in up to '+esc(ccUs(A.last))+' (yesterday arrives at 3am), so every comparison uses the same days.':'')+
-     ' Meta (Instagram) from the 3am daily ads report; Google Ads is not running. New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
+     ' Meta ads = the main + Retargeting campaigns; boosted posts = boosted Instagram posts (Meta account 305666896); both from the 3am daily ads report. Total ad spend = Meta ads + boosted posts + Google Ads (not running). New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
   if(A.err) h+='<div class="warn-box">Ad spend: '+esc(A.err)+'</div>';
   if(a&&a.bf) h+='<p class="note" style="margin:0 0 10px">This period includes the older ad account (Otis): monthly totals from Nov 2024 to May 2025, kept in the “Ad spend - monthly backfill” tab. Google Ads for those months is not known (left blank).'+(fair?' For the same-days comparison the month total is spread evenly over its days.':'')+'</p>';
   if(a&&a.gap>0) h+='<div class="warn-box">'+a.gap+' day'+(a.gap>1?'s':'')+' of this period have no spend in EP HQ yet, so these numbers are low.</div>';
+  if(a&&a.bGap>0) h+='<div class="warn-box">Incomplete: boosted Instagram posts are missing for '+a.bGap+' of '+a.days+' day'+(a.days>1?'s':'')+' of this period, so total ad spend and cost per contract leave those days out (not counted as $0, not estimated).</div>';
+  var bOld=cols.filter(function(c){ return c.v&&c.v.bGap>0; }).map(function(c){ return adLabel(t,c.key,fair)+' ('+c.v.bGap+' day'+(c.v.bGap>1?'s':'')+')'; });
+  if(bOld.length) h+='<p class="note" style="margin:0 0 10px">Also missing boosted posts days: '+esc(bOld.join(' · '))+' — those totals are incomplete too.</p>';
   function chips(get,better,money){ return cols.map(function(c){ var x=adDelta(get(a),c.v?get(c.v):null,better,money); return '<span class="dl '+x.c+'">vs '+esc(adLabel(t,c.key,fair))+': <b>'+esc(x.t)+'</b></span>'; }).join(''); }
   h+='<div class="kpis">'+
-    '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Meta (Instagram) spend</div><div class="v money">'+adUsd(a&&a.days?a.meta/a.days:null)+'<span class="s"> / day</span></div>'+
+    '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Meta ads (main + Retargeting)</div><div class="v money">'+adUsd(a&&a.days?a.meta/a.days:null)+'<span class="s"> / day</span></div>'+
       '<div class="s">Monthly <b>'+adUsd(a&&a.days?a.meta/a.days*30.4:null)+'</b> · in the period <b>'+adUsd(a?a.meta:null)+'</b></div><div class="chips">'+chips(function(o){ return o.days?o.meta/o.days:null; },'',true)+'</div></div>'+
+    '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Boosted Instagram posts</div><div class="v money">'+adUsd(a&&a.bHave?a.boost/a.bHave:null)+'<span class="s"> / day</span></div>'+
+      '<div class="s">Monthly <b>'+adUsd(a&&a.bHave?a.boost/a.bHave*30.4:null)+'</b> · in the period <b>'+adUsd(a&&a.bHave?a.boost:null)+'</b> · '+(a?a.bHave:0)+' of '+(a?a.days:0)+' days in</div></div>'+
     '<div class="kpi" style="--c:var(--muted)"><div class="k">Google Ads spend</div><div class="off">Not running</div><div class="s"><b>$0.00</b> / day · <b>$0.00</b> monthly</div></div>'+
     '<div class="kpi" style="--c:var(--c-booked)"><div class="k">New contracts</div><div class="v">'+(a?a.c:'—')+'</div><div class="chips">'+chips(function(o){ return o.c; },'more',false)+'</div></div>'+
-    '<div class="kpi" style="--c:var(--c-cost)"><div class="k">Cost per contract</div><div class="v money">'+adUsd(a?a.cpc:null)+'</div><div class="s">all ad spend ÷ new contracts</div><div class="chips">'+chips(function(o){ return o.cpc; },'less',true)+'</div></div>'+
+    '<div class="kpi" style="--c:var(--c-cost)"><div class="k">Cost per contract</div><div class="v money">'+adUsd(a?a.cpc:null)+'</div><div class="s">all ad spend (incl. boosted posts) ÷ new contracts'+(a&&a.bGap>0?' · <b>incomplete</b>':'')+'</div><div class="chips">'+chips(function(o){ return o.cpc; },'less',true)+'</div></div>'+
   '</div>';
   /* the comparison table */
-  var rows=[['Total ad spend in the period',function(o){return o.total;},'',true],['Daily',function(o){return o.daily;},'',true],['Monthly (daily × 30.4)',function(o){return o.monthly;},'',true],
-            ['  Meta (Instagram) daily',function(o){return o.days?o.meta/o.days:null;},'',true],['  Google Ads daily',function(o){return o.days?o.google/o.days:null;},'',true],
+  var rows=[['Total ad spend in the period (Meta ads + boosted + Google)',function(o){return o.total;},'',true],['Daily',function(o){return o.daily;},'',true],['Monthly (daily × 30.4)',function(o){return o.monthly;},'',true],
+            ['  Meta ads (main + Retargeting) daily',function(o){return o.days?o.meta/o.days:null;},'',true],['  Boosted Instagram posts daily',function(o){return o.bHave?o.boost/o.bHave:null;},'',true],['  Google Ads daily',function(o){return o.days?o.google/o.days:null;},'',true],
             ['New contracts',function(o){return o.c;},'more',false],['Cost per contract',function(o){return o.cpc;},'less',true]];
   h+='<div class="tbl fit" style="margin-top:12px"><table><tr><th></th><th>'+esc(adLabel(t,sel,fair))+'</th>'+cols.map(function(c){ return '<th>'+esc(adLabel(t,c.key,fair))+'</th><th>Change</th>'; }).join('')+'</tr>';
   rows.forEach(function(r){
@@ -1416,6 +1422,7 @@ function adSection(){
     h+='<tr class="sel"><td><b>Texas total</b></td><td><b>'+a.c+'</b></td><td>100%</td><td><b>'+adUsd(a.daily)+'</b></td><td><b>'+adUsd(a.monthly)+'</b></td><td><b>'+adUsd(a.cpc)+'</b></td></tr></table></div>'+
        '<p class="note">Meta cannot tell spend per city: both ad sets target all 8 cities together and Meta reports Texas only. So each city gets the Texas spend in proportion to its share of new contracts — which is why every city shows the same cost per contract. The city comes from the master (same wedding date and name), otherwise from the inquiry form’s venue.</p>';
   } else h+='<p class="sub" style="margin-top:10px">No new contracts in this period yet, so no cost per contract or city split.</p>';
+  h+='<p class="note">Boosted posts come from '+esc(A.boostSource||'Meta ad account 305666896 (not in EP HQ yet)')+'; saved in 3 new columns at the end of the “Ad spend” tab ('+(A.boostRows||0)+' days so far). A day with no boosted number stays blank — never $0 and never an estimate.</p>';
   h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads: not running ($0).</p>';
   return h+'</section>';
 }
