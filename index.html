@@ -1356,8 +1356,9 @@ function adSum(t,key,fair){
     o.boost+=x.boost||0; o.bHave+=x.bHave||0;                       // boosted Instagram posts (acct 305666896), 11/05/2026
     Object.keys(x.city).forEach(function(k){ o.city[k]=(o.city[k]||0)+x.city[k]; });
   }
-  o.gaGoogle=gadsCostIn(ms,idx); // Google Ads from GA4, same days (11/07/2026); not in the totals yet
-  o.total=o.meta+o.google+o.boost; o.gap=o.days-o.have; o.bGap=Math.max(0,o.days-o.bHave);   // bGap: days with no boosted number (total incomplete)
+  o.gaGoogle=gadsCostIn(ms,idx); // Google Ads from GA4, same days (11/07/2026)
+  o.gUsed=(o.gaGoogle!==null&&o.gaGoogle!==undefined&&o.gaGoogle>0)?o.gaGoogle:o.google; // in the totals since 11/08/2026 (Rafael: yes); GA4 when it has spend, else the old column
+  o.total=o.meta+o.gUsed+o.boost; o.gap=o.days-o.have; o.bGap=Math.max(0,o.days-o.bHave);   // bGap: days with no boosted number (total incomplete)
   o.daily=o.days?o.total/o.days:null; o.monthly=o.daily===null?null:o.daily*30.4;
   o.cpc=o.c?o.total/o.c:null;
   return o;
@@ -1383,7 +1384,7 @@ function adSection(){
   if(!adOn()||!A.rows) return h+'<div class="warn-box">No ad spend in EP HQ yet. It arrives with the 3am daily ads report.'+(A&&A.err?' Last problem: '+esc(A.err):'')+'</div></section>';
   var a=adSum(t,sel,fair), cols=cm.map(function(c){ return {key:c[0],name:c[1],v:adSum(t,c[0],fair)}; });
   h+='<p class="lede">'+esc(adLabel(t,sel,fair))+(fair?' — spend is in up to '+esc(ccUs(A.last))+' (yesterday arrives at 3am), so every comparison uses the same days.':'')+
-     ' Meta ads = the main + Retargeting campaigns; boosted posts = boosted Instagram posts (Meta account 305666896); both from the 3am daily ads report. Total ad spend = Meta ads + boosted posts (Google Ads is running since 11/06/2026 but not added to these totals yet: see “Google Ads · from Google Analytics” below). New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
+     ' Meta ads = the main + Retargeting campaigns; boosted posts = boosted Instagram posts (Meta account 305666896); both from the 3am daily ads report. Total ad spend = Meta ads + boosted posts + Google Ads (Google Ads running since 11/06/2026, spend from Google Analytics: see “Google Ads · from Google Analytics” below). New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
   if(A.err) h+='<div class="warn-box">Ad spend: '+esc(A.err)+'</div>';
   if(a&&a.bf) h+='<p class="note" style="margin:0 0 10px">This period includes the older ad account (Otis): monthly totals from Nov 2024 to May 2025, kept in the “Ad spend - monthly backfill” tab. Google Ads for those months is not known (left blank).'+(fair?' For the same-days comparison the month total is spread evenly over its days.':'')+'</p>';
   if(a&&a.gap>0) h+='<div class="warn-box">'+a.gap+' day'+(a.gap>1?'s':'')+' of this period have no spend in EP HQ yet, so these numbers are low.</div>';
@@ -1398,11 +1399,11 @@ function adSection(){
       '<div class="s">Monthly <b>'+adUsd(a&&a.bHave?a.boost/a.bHave*30.4:null)+'</b> · in the period <b>'+adUsd(a&&a.bHave?a.boost:null)+'</b> · '+(a?a.bHave:0)+' of '+(a?a.days:0)+' days in</div></div>'+
     gadsAdCard()+ // Google Ads from GA4 (11/07/2026); was the "Not running" card
     '<div class="kpi" style="--c:var(--c-booked)"><div class="k">New contracts</div><div class="v">'+(a?a.c:'—')+'</div><div class="chips">'+chips(function(o){ return o.c; },'more',false)+'</div></div>'+
-    '<div class="kpi" style="--c:var(--c-cost)"><div class="k">Cost per contract</div><div class="v money">'+adUsd(a?a.cpc:null)+'</div><div class="s">all ad spend (incl. boosted posts) ÷ new contracts'+(a&&a.bGap>0?' · <b>incomplete</b>':'')+'</div><div class="chips">'+chips(function(o){ return o.cpc; },'less',true)+'</div></div>'+
+    '<div class="kpi" style="--c:var(--c-cost)"><div class="k">Cost per contract</div><div class="v money">'+adUsd(a?a.cpc:null)+'</div><div class="s">all ad spend (Meta + boosted posts + Google Ads) ÷ new contracts'+(a&&a.bGap>0?' · <b>incomplete</b>':'')+'</div><div class="chips">'+chips(function(o){ return o.cpc; },'less',true)+'</div></div>'+
   '</div>';
   /* the comparison table */
-  var rows=[['Total ad spend in the period (Meta ads + boosted; Google not added yet)',function(o){return o.total;},'',true],['Daily',function(o){return o.daily;},'',true],['Monthly (daily × 30.4)',function(o){return o.monthly;},'',true],
-            ['  Meta ads (main + Retargeting) daily',function(o){return o.days?o.meta/o.days:null;},'',true],['  Boosted Instagram posts daily',function(o){return o.bHave?o.boost/o.bHave:null;},'',true],['  Google Ads daily (from Google Analytics; not in the totals yet)',function(o){return o.days&&o.gaGoogle!==null&&o.gaGoogle!==undefined?o.gaGoogle/o.days:null;},'',true],
+  var rows=[['Total ad spend in the period (Meta ads + boosted + Google Ads)',function(o){return o.total;},'',true],['Daily',function(o){return o.daily;},'',true],['Monthly (daily × 30.4)',function(o){return o.monthly;},'',true],
+            ['  Meta ads (main + Retargeting) daily',function(o){return o.days?o.meta/o.days:null;},'',true],['  Boosted Instagram posts daily',function(o){return o.bHave?o.boost/o.bHave:null;},'',true],['  Google Ads daily (from Google Analytics)',function(o){return o.days?o.gUsed/o.days:null;},'',true],
             ['New contracts',function(o){return o.c;},'more',false],['Cost per contract',function(o){return o.cpc;},'less',true]];
   h+='<div class="tbl fit" style="margin-top:12px"><table><tr><th></th><th>'+esc(adLabel(t,sel,fair))+'</th>'+cols.map(function(c){ return '<th>'+esc(adLabel(t,c.key,fair))+'</th><th>Change</th>'; }).join('')+'</tr>';
   rows.forEach(function(r){
@@ -1424,7 +1425,7 @@ function adSection(){
        '<p class="note">Meta cannot tell spend per city: both ad sets target all 8 cities together and Meta reports Texas only. So each city gets the Texas spend in proportion to its share of new contracts — which is why every city shows the same cost per contract. The city comes from the master (same wedding date and name), otherwise from the inquiry form’s venue.</p>';
   } else h+='<p class="sub" style="margin-top:10px">No new contracts in this period yet, so no cost per contract or city split.</p>';
   h+='<p class="note">Boosted posts come from '+esc(A.boostSource||'Meta ad account 305666896 (not in EP HQ yet)')+'; saved in 3 new columns at the end of the “Ad spend” tab ('+(A.boostRows||0)+' days so far). A day with no boosted number stays blank — never $0 and never an estimate.</p>';
-  h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads is not added to these totals yet: see “Google Ads · from Google Analytics” below.</p>';
+  h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads is included in these totals since 11/06/2026: its spend comes from Google Analytics (see “Google Ads · from Google Analytics” below), which counts days in Pacific time, so a day can be off by about 2 hours at midnight. Per city, Google Ads is spread the same way as Meta even though it only runs in the Houston area.</p>';
   return h+'</section>';
 }
 /* ---------- Profit (approved 11/01/2026). Money received (Sales Board monthly totals) minus Total costs (the "Costs" tab).
@@ -1802,16 +1803,16 @@ function gadsSection(){
   });
   if(!det.length) h+='<tr><td colspan="15" class="dim">No Google Ads activity in the last 14 days.</td></tr>';
   h+='</table></div></details>';
-  h+='<p class="note">Coming with the Google Ads connection (it needs your Google Ads login, not Google Analytics): whether each campaign and ad is running and approved, Google’s own conversion count, “Limited by budget”, and the exact searches people typed. Leads: the real count is the inbox (“How did you hear about us?” = Google / Google ad); website leads here are GA4’s count of /thank-you visits from the ad, from 11/04/2026. In the “Ad spend” section above, Google Ads is shown but not yet added to the totals or the cost per contract.</p>';
+  h+='<p class="note">Coming with the Google Ads connection (it needs your Google Ads login, not Google Analytics): whether each campaign and ad is running and approved, Google’s own conversion count, “Limited by budget”, and the exact searches people typed. Leads: the real count is the inbox (“How did you hear about us?” = Google / Google ad); website leads here are GA4’s count of /thank-you visits from the ad, from 11/04/2026. In the “Ad spend” section above, Google Ads is included in Total ad spend and Cost per contract (from 11/06/2026).</p>';
   return h+'</section>';
 }
-/* the Google Ads card inside "Ad spend & cost per contract": this month from GA4, not added to that section's totals yet */
+/* the Google Ads card inside "Ad spend & cost per contract": this month from GA4, included in that section's totals since 11/08/2026 */
 function gadsAdCard(){
   var G=MK.gads;
   if(!G||!G.days) return '<div class="kpi" style="--c:var(--muted)"><div class="k">Google Ads spend</div><div class="off">Not loaded</div><div class="s">See “Google Ads · from Google Analytics” below'+(G&&G.err?' · '+esc(G.err):'')+'</div></div>';
   var a=gadsSum('month');
   return '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Google Ads spend · this month · '+esc(G.cur||'USD')+'</div><div class="v money">'+adUsd(a.cost)+'</div>'+
-    '<div class="s">Running since '+esc(ccUs(G.from))+' · '+esc(gadsPeriod(a))+'<br>Per day <b>'+adUsd(a.daily)+'</b> · monthly <b>'+adUsd(a.monthly)+'</b>'+(a.fullDays?' (finished days)':'')+'<br>From Google Analytics, '+esc(gadsTzName(G.tz))+' · refreshed '+esc(G.updated||'—')+' · not in this section’s totals yet, details below</div></div>';
+    '<div class="s">Running since '+esc(ccUs(G.from))+' · '+esc(gadsPeriod(a))+'<br>Per day <b>'+adUsd(a.daily)+'</b> · monthly <b>'+adUsd(a.monthly)+'</b>'+(a.fullDays?' (finished days)':'')+'<br>From Google Analytics, '+esc(gadsTzName(G.tz))+' · refreshed '+esc(G.updated||'—')+' · included in total ad spend and cost per contract, details below</div></div>';
 }
 
 function renderMarketing(){
