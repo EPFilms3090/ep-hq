@@ -1356,6 +1356,7 @@ function adSum(t,key,fair){
     o.boost+=x.boost||0; o.bHave+=x.bHave||0;                       // boosted Instagram posts (acct 305666896), 11/05/2026
     Object.keys(x.city).forEach(function(k){ o.city[k]=(o.city[k]||0)+x.city[k]; });
   }
+  o.gaGoogle=gadsCostIn(ms,idx); // Google Ads from GA4, same days (11/07/2026); not in the totals yet
   o.total=o.meta+o.google+o.boost; o.gap=o.days-o.have; o.bGap=Math.max(0,o.days-o.bHave);   // bGap: days with no boosted number (total incomplete)
   o.daily=o.days?o.total/o.days:null; o.monthly=o.daily===null?null:o.daily*30.4;
   o.cpc=o.c?o.total/o.c:null;
@@ -1382,7 +1383,7 @@ function adSection(){
   if(!adOn()||!A.rows) return h+'<div class="warn-box">No ad spend in EP HQ yet. It arrives with the 3am daily ads report.'+(A&&A.err?' Last problem: '+esc(A.err):'')+'</div></section>';
   var a=adSum(t,sel,fair), cols=cm.map(function(c){ return {key:c[0],name:c[1],v:adSum(t,c[0],fair)}; });
   h+='<p class="lede">'+esc(adLabel(t,sel,fair))+(fair?' — spend is in up to '+esc(ccUs(A.last))+' (yesterday arrives at 3am), so every comparison uses the same days.':'')+
-     ' Meta ads = the main + Retargeting campaigns; boosted posts = boosted Instagram posts (Meta account 305666896); both from the 3am daily ads report. Total ad spend = Meta ads + boosted posts + Google Ads (not running). New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
+     ' Meta ads = the main + Retargeting campaigns; boosted posts = boosted Instagram posts (Meta account 305666896); both from the 3am daily ads report. Total ad spend = Meta ads + boosted posts (Google Ads is running since 11/06/2026 but not added to these totals yet: see “Google Ads · from Google Analytics” below). New contract = deposit paid. Daily = spend ÷ days, monthly = daily × 30.4.</p>';
   if(A.err) h+='<div class="warn-box">Ad spend: '+esc(A.err)+'</div>';
   if(a&&a.bf) h+='<p class="note" style="margin:0 0 10px">This period includes the older ad account (Otis): monthly totals from Nov 2024 to May 2025, kept in the “Ad spend - monthly backfill” tab. Google Ads for those months is not known (left blank).'+(fair?' For the same-days comparison the month total is spread evenly over its days.':'')+'</p>';
   if(a&&a.gap>0) h+='<div class="warn-box">'+a.gap+' day'+(a.gap>1?'s':'')+' of this period have no spend in EP HQ yet, so these numbers are low.</div>';
@@ -1395,13 +1396,13 @@ function adSection(){
       '<div class="s">Monthly <b>'+adUsd(a&&a.days?a.meta/a.days*30.4:null)+'</b> · in the period <b>'+adUsd(a?a.meta:null)+'</b></div><div class="chips">'+chips(function(o){ return o.days?o.meta/o.days:null; },'',true)+'</div></div>'+
     '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Boosted Instagram posts</div><div class="v money">'+adUsd(a&&a.bHave?a.boost/a.bHave:null)+'<span class="s"> / day</span></div>'+
       '<div class="s">Monthly <b>'+adUsd(a&&a.bHave?a.boost/a.bHave*30.4:null)+'</b> · in the period <b>'+adUsd(a&&a.bHave?a.boost:null)+'</b> · '+(a?a.bHave:0)+' of '+(a?a.days:0)+' days in</div></div>'+
-    '<div class="kpi" style="--c:var(--muted)"><div class="k">Google Ads spend</div><div class="off">Not running</div><div class="s"><b>$0.00</b> / day · <b>$0.00</b> monthly</div></div>'+
+    gadsAdCard()+ // Google Ads from GA4 (11/07/2026); was the "Not running" card
     '<div class="kpi" style="--c:var(--c-booked)"><div class="k">New contracts</div><div class="v">'+(a?a.c:'—')+'</div><div class="chips">'+chips(function(o){ return o.c; },'more',false)+'</div></div>'+
     '<div class="kpi" style="--c:var(--c-cost)"><div class="k">Cost per contract</div><div class="v money">'+adUsd(a?a.cpc:null)+'</div><div class="s">all ad spend (incl. boosted posts) ÷ new contracts'+(a&&a.bGap>0?' · <b>incomplete</b>':'')+'</div><div class="chips">'+chips(function(o){ return o.cpc; },'less',true)+'</div></div>'+
   '</div>';
   /* the comparison table */
-  var rows=[['Total ad spend in the period (Meta ads + boosted + Google)',function(o){return o.total;},'',true],['Daily',function(o){return o.daily;},'',true],['Monthly (daily × 30.4)',function(o){return o.monthly;},'',true],
-            ['  Meta ads (main + Retargeting) daily',function(o){return o.days?o.meta/o.days:null;},'',true],['  Boosted Instagram posts daily',function(o){return o.bHave?o.boost/o.bHave:null;},'',true],['  Google Ads daily',function(o){return o.days?o.google/o.days:null;},'',true],
+  var rows=[['Total ad spend in the period (Meta ads + boosted; Google not added yet)',function(o){return o.total;},'',true],['Daily',function(o){return o.daily;},'',true],['Monthly (daily × 30.4)',function(o){return o.monthly;},'',true],
+            ['  Meta ads (main + Retargeting) daily',function(o){return o.days?o.meta/o.days:null;},'',true],['  Boosted Instagram posts daily',function(o){return o.bHave?o.boost/o.bHave:null;},'',true],['  Google Ads daily (from Google Analytics; not in the totals yet)',function(o){return o.days&&o.gaGoogle!==null&&o.gaGoogle!==undefined?o.gaGoogle/o.days:null;},'',true],
             ['New contracts',function(o){return o.c;},'more',false],['Cost per contract',function(o){return o.cpc;},'less',true]];
   h+='<div class="tbl fit" style="margin-top:12px"><table><tr><th></th><th>'+esc(adLabel(t,sel,fair))+'</th>'+cols.map(function(c){ return '<th>'+esc(adLabel(t,c.key,fair))+'</th><th>Change</th>'; }).join('')+'</tr>';
   rows.forEach(function(r){
@@ -1423,7 +1424,7 @@ function adSection(){
        '<p class="note">Meta cannot tell spend per city: both ad sets target all 8 cities together and Meta reports Texas only. So each city gets the Texas spend in proportion to its share of new contracts — which is why every city shows the same cost per contract. The city comes from the master (same wedding date and name), otherwise from the inquiry form’s venue.</p>';
   } else h+='<p class="sub" style="margin-top:10px">No new contracts in this period yet, so no cost per contract or city split.</p>';
   h+='<p class="note">Boosted posts come from '+esc(A.boostSource||'Meta ad account 305666896 (not in EP HQ yet)')+'; saved in 3 new columns at the end of the “Ad spend” tab ('+(A.boostRows||0)+' days so far). A day with no boosted number stays blank — never $0 and never an estimate.</p>';
-  h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads: not running ($0).</p>';
+  h+='<p class="note">Where the spend comes from: '+esc(A.source)+'. Saved each night into the “Ad spend” tab of the EP Command Center sheet (one row per day; '+A.rows+' days so far, newest '+esc(ccUs(A.last))+'). Google Ads is not added to these totals yet: see “Google Ads · from Google Analytics” below.</p>';
   return h+'</section>';
 }
 /* ---------- Profit (approved 11/01/2026). Money received (Sales Board monthly totals) minus Total costs (the "Costs" tab).
@@ -1691,6 +1692,128 @@ function scSection(){
   return h+'</section>';
 }
 
+/* ---------- Google Ads · FROM GOOGLE ANALYTICS (11/07/2026, approved by Rafael in writing; detail added 11/07/2026). Read only: GA4 receives
+   the Google Ads cost because the two accounts are linked. Per day: account, campaign, ad group, ad and keyword, with spend, impressions,
+   clicks, visits from the ad and what those visitors did (date checks, website leads). Copied into the “Google Ads (from GA4)” tab,
+   refreshed when Marketing opens (at most once an hour). Fixed periods. Status, Google's own conversions and search terms need Google Ads. */
+var GADP=[['month','This month'],['prev','Last month'],['week','Last 7 days'],['all','Since 11/06/2026']];
+var GADB=[['camp','Campaign'],['ag','Ad group'],['ad','Ad'],['kw','Keyword']];
+function gadsAdd(iso,n){ return new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))+n*864e5).toISOString().slice(0,10); }
+function gadsSpan(a,b){ return a>b?0:Math.round((Date.UTC(+b.slice(0,4),+b.slice(5,7)-1,+b.slice(8,10))-Date.UTC(+a.slice(0,4),+a.slice(5,7)-1,+a.slice(8,10)))/864e5)+1; }
+function gadsToday(){ var G=MK.gads; return G.gaToday||G.today; }
+function gadsRange(k){
+  var G=MK.gads, td=gadsToday(), y=+td.slice(0,4), m=+td.slice(5,7), from, to;
+  if(k==='month'){ from=td.slice(0,8)+'01'; to=td; }
+  else if(k==='prev'){ var py=m===1?y-1:y, pm=m===1?12:m-1, pmm=py+'-'+('0'+pm).slice(-2); from=pmm+'-01'; to=pmm+'-'+('0'+new Date(Date.UTC(py,pm,0)).getUTCDate()).slice(-2); }
+  else if(k==='week'){ from=gadsAdd(td,-7); to=gadsAdd(td,-1); }
+  else { from=G.from; to=td; }
+  return {from:from<G.from?G.from:from, to:to};
+}
+/* day status: today = in progress; yesterday = still updating (GA4 can adjust a day for 1–2 days); older = complete */
+function gadsDayStatus(iso){ var td=gadsToday(); return iso>=td?'In progress':iso===gadsAdd(td,-1)?'Still updating':'Complete'; }
+function gadsTzName(tz){ return tz==='America/Los_Angeles'?'Pacific time':tz==='America/Chicago'?'Central time':tz||'—'; }
+function gadsAcctId(id){ id=String(id||''); return id.length===10?id.slice(0,3)+'-'+id.slice(3,6)+'-'+id.slice(6):id||'—'; }
+/* totals of a period; the daily average only uses finished days (today is not over yet) */
+function gadsSum(k){
+  var G=MK.gads, r=gadsRange(k), yest=gadsAdd(gadsToday(),-1), o={from:r.from,to:r.to,cost:0,clicks:0,imp:0,visits:0,checks:0,leads:0,fullCost:0};
+  (G.days||[]).forEach(function(d){ if(d.iso<r.from||d.iso>r.to) return; ['cost','clicks','imp','visits','checks','leads'].forEach(function(x){ o[x]+=d[x]; }); if(d.iso<=yest) o.fullCost+=d.cost; });
+  o.fullDays=gadsSpan(r.from, r.to<yest?r.to:yest);
+  o.daily=o.fullDays?o.fullCost/o.fullDays:null; o.monthly=o.daily===null?null:o.daily*30.4;
+  o.cpc=o.clicks?o.cost/o.clicks:null; o.ctr=o.imp?o.clicks/o.imp:null; o.cpl=o.leads?o.cost/o.leads:null; o.cpk=o.checks?o.cost/o.checks:null;
+  o.inProgress=r.to>=gadsToday();
+  return o;
+}
+/* Google Ads spend (GA4) in the months of an "Ad spend" period, the month in progress cut at the same day as Meta (for that section) */
+function gadsCostIn(ms,idx){
+  var G=MK.gads; if(!G||!G.days) return null; var s=0;
+  ms.forEach(function(m,i){ var cut=(idx>=0&&i===idx)?(+((MK.ads&&MK.ads.cut)||0)):99; G.days.forEach(function(d){ if(d.iso.slice(0,7)===m&&+d.iso.slice(8,10)<=cut) s+=d.cost; }); });
+  return Math.round(s*100)/100;
+}
+function gadsPeriod(o){ return o.from>o.to?'no days yet':ccUs(o.from)+(o.from===o.to?'':' – '+ccUs(o.to))+(o.inProgress?' (today still in progress)':''); }
+function gadsPct(x){ return x===null||x===undefined||!isFinite(x)?'—':(Math.round(x*1000)/10)+'%'; }
+function gadsN(x){ return (Number(x)||0).toLocaleString('en-US'); }
+/* rows of a period grouped by campaign / ad group / ad / keyword */
+function gadsBreak(by,r){
+  var G=MK.gads, out={};
+  (G.rows||[]).forEach(function(x){
+    if(x.iso<r.from||x.iso>r.to) return;
+    var k, name, id;
+    if(by==='camp'){ k=x.campId; name=x.camp||'(no name)'; id=x.campId; }
+    else if(by==='ag'){ k=x.agId||'-'; name=(x.ag||'(no ad group)')+(x.camp?' · '+x.camp:''); id=x.agId; }
+    else if(by==='ad'){ k=x.adId||'-'; name=x.adId?'Ad in “'+(x.ag||'?')+'”':'(ad not known)'; id=x.adId; }
+    else { k=(x.kw||'-')+'|'+x.agId; name=x.kw||'(no keyword)'; id=x.ag?'ad group '+x.ag:''; }
+    var o=out[k]||(out[k]={name:name,id:id||'',cost:0,imp:0,clicks:0,visits:0,checks:0,leads:0});
+    ['cost','imp','clicks','visits','checks','leads'].forEach(function(f){ o[f]+=Number(x[f])||0; });
+  });
+  return Object.keys(out).map(function(k){ return out[k]; }).sort(function(a,b){ return (b.cost-a.cost)||(b.clicks-a.clicks)||(a.name<b.name?-1:1); });
+}
+function gadsSection(){
+  var G=MK.gads, h='<section class="sec"><h2>Google Ads · from Google Analytics</h2>';
+  if(!G||!G.days) return h+'<div class="warn-box">The Google Ads numbers could not load.'+(G&&G.err?' '+esc(G.err):'')+'</div></section>';
+  var sel=S.gadp||'month', P={}; GADP.forEach(function(x){ P[x[0]]=gadsSum(x[0]); }); var a=P[sel], cur=G.cur||'USD';
+  h+='<p class="lede"><b>These numbers come from Google Analytics</b> (EP Films GA4), which receives the Google Ads cost because the two are linked — not from Google Ads itself. Read only. Account <b>'+esc((G.acct&&G.acct.name)||'EP Films')+'</b> ('+esc(gadsAcctId(G.acct&&G.acct.id))+') · campaign <b>'+esc((G.camps||[]).join(', ')||'—')+'</b>, running since '+esc(ccUs(G.from))+' on a <b>'+adUsd(G.budget)+' / day</b> budget ('+adUsd(G.budget*30.4)+' monthly).</p>';
+  h+='<div class="tbl fit" style="margin:0 0 10px"><table><tr><th>Currency</th><th>Days counted in</th><th>Dates in this view</th><th>Last refresh</th><th>Today</th></tr><tr>'+
+     '<td><b>'+esc(cur)+'</b> (US dollars)</td>'+
+     '<td><b>'+esc(gadsTzName(G.tz))+'</b> (Google Analytics’ time zone). Your Google Ads account counts days in Central time, so a single day can differ a little; months match.</td>'+
+     '<td>'+esc(gadsPeriod(a))+'</td>'+
+     '<td>'+esc(G.updated||'—')+' · copied into the “Google Ads (from GA4)” tab; refreshes when Marketing opens, at most once an hour</td>'+
+     '<td>'+esc(ccUs(gadsToday()))+' is <b>in progress</b>; the day before is <b>still updating</b> (Google Analytics can adjust a day for 1–2 days); older days are <b>complete</b></td></tr></table></div>';
+  if(G.err) h+='<div class="warn-box">Could not read Google Analytics just now, so this is the last copy: '+esc(G.err)+'</div>';
+  h+='<div class="ctl" style="margin:4px 0 10px">'+GADP.map(function(x){ return '<button class="chip'+(sel===x[0]?' on':'')+'" onclick="S.gadp=\''+x[0]+'\';renderMarketing()">'+x[1]+' · '+adUsd(P[x[0]].cost)+'</button>'; }).join('')+'</div>';
+  h+='<div class="kpis">'+
+    '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Google Ads spend · '+esc(cur)+'</div><div class="v money">'+adUsd(a.cost)+'</div>'+
+      '<div class="s">In '+esc(gadsPeriod(a))+'<br>Per day <b>'+adUsd(a.daily)+'</b> · monthly <b>'+adUsd(a.monthly)+'</b>'+(a.fullDays?' (average of '+a.fullDays+' finished day'+(a.fullDays>1?'s':'')+')':' (no finished day yet)')+'<br>Budget '+adUsd(G.budget)+' / day · '+adUsd(G.budget*30.4)+' monthly</div></div>'+
+    '<div class="kpi" style="--c:var(--c-new)"><div class="k">Clicks on the ad</div><div class="v">'+gadsN(a.clicks)+'</div><div class="s">Average cost per click <b>'+adUsd(a.cpc)+'</b> · shown <b>'+gadsN(a.imp)+'</b> times · click rate (CTR) <b>'+gadsPct(a.ctr)+'</b></div></div>'+
+    '<div class="kpi" style="--c:var(--c-call)"><div class="k">Visits from the ad</div><div class="v">'+gadsN(a.visits)+'</div><div class="s">Visits to the website that came from the ad (GA4)</div></div>'+
+    '<div class="kpi" style="--c:var(--c-signed)"><div class="k">Date checks by ad visitors</div><div class="v">'+gadsN(a.checks)+'</div><div class="s">Cost per date check <b>'+adUsd(a.cpk)+'</b></div></div>'+
+    '<div class="kpi" style="--c:var(--c-booked)"><div class="k">Website leads from the ad (GA4)</div><div class="v">'+gadsN(a.leads)+'</div><div class="s">Cost per website lead <b>'+adUsd(a.cpl)+'</b> · the inbox is the real count</div></div>'+
+  '</div>';
+  /* conversions by action */
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Conversions by action · '+esc(gadsPeriod(a))+'</h3><div class="tbl fit"><table><tr><th>Action</th><th>What it counts</th><th>Count</th><th>Cost per action ('+esc(cur)+')</th><th>Source</th></tr>'+
+    '<tr><td>Date check</td><td>An ad visitor clicked a date on the availability calendar (event “availability_check”)</td><td><b>'+gadsN(a.checks)+'</b></td><td>'+adUsd(a.cpk)+'</td><td>Google Analytics</td></tr>'+
+    '<tr><td>Website lead</td><td>An ad visitor reached /thank-you after the inquiry form (event “generate_lead”)</td><td><b>'+gadsN(a.leads)+'</b></td><td>'+adUsd(a.cpl)+'</td><td>Google Analytics</td></tr>'+
+    '<tr><td>EP Lead – Thank you page</td><td>Google Ads’ own conversion count</td><td class="dim">—</td><td class="dim">—</td><td class="dim">Needs the Google Ads connection</td></tr></table></div>';
+  /* breakdowns */
+  var bsel=S.gadb||'camp', rows=gadsBreak(bsel,gadsRange(sel));
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Breakdown · '+esc(gadsPeriod(a))+'</h3>';
+  h+='<div class="ctl" style="margin:0 0 8px">'+GADB.map(function(x){ return '<button class="chip'+(bsel===x[0]?' on':'')+'" onclick="S.gadb=\''+x[0]+'\';renderMarketing()">'+x[1]+'</button>'; }).join('')+'</div>';
+  h+='<div class="tbl fit"><table><tr><th>'+esc(GADB.filter(function(x){return x[0]===bsel;})[0][1])+'</th><th>ID</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Avg CPC</th><th>Visits</th><th>Date checks</th><th>Cost / date check</th><th>Website leads</th><th>Cost / website lead</th></tr>';
+  rows.forEach(function(x){
+    h+='<tr><td>'+esc(x.name)+'</td><td class="dim">'+esc(x.id||'—')+'</td><td><b>'+adUsd(x.cost)+'</b></td><td>'+gadsN(x.imp)+'</td><td>'+gadsN(x.clicks)+'</td><td>'+gadsPct(x.imp?x.clicks/x.imp:null)+'</td><td>'+adUsd(x.clicks?x.cost/x.clicks:null)+'</td><td>'+gadsN(x.visits)+'</td><td>'+gadsN(x.checks)+'</td><td>'+adUsd(x.checks?x.cost/x.checks:null)+'</td><td>'+gadsN(x.leads)+'</td><td>'+adUsd(x.leads?x.cost/x.leads:null)+'</td></tr>';
+  });
+  if(!rows.length) h+='<tr><td colspan="12" class="dim">No Google Ads activity in this period.</td></tr>';
+  h+='</table></div>';
+  if(bsel==='kw') h+='<p class="note">Keyword = the keyword in your campaign that matched the search. The exact words people typed (search terms) come with the Google Ads connection.</p>';
+  if(bsel==='ad') h+='<p class="note">Your ads are responsive search ads: Google names them only by ID. Each ad group has one ad.</p>';
+  /* day by day, last 14 days */
+  var td=gadsToday(), first=gadsAdd(td,-13); if(first<G.from) first=G.from;
+  var by={}; (G.days||[]).forEach(function(d){ by[d.iso]=d; });
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Day by day (last 14 days, '+esc(gadsTzName(G.tz))+')</h3><div class="tbl fit"><table><tr><th>Day</th><th>Day status</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Avg CPC</th><th>Visits</th><th>Date checks</th><th>Website leads</th></tr>';
+  for(var d=td; d>=first; d=gadsAdd(d,-1)){
+    var x=by[d]||{cost:0,clicks:0,imp:0,visits:0,checks:0,leads:0}, st=gadsDayStatus(d);
+    h+='<tr'+(st==='In progress'?' class="sel"':'')+'><td>'+esc(ccUs(d))+'</td><td>'+(st==='Complete'?st:'<b>'+st+'</b>')+'</td><td><b>'+adUsd(x.cost)+'</b></td><td>'+gadsN(x.imp)+'</td><td>'+gadsN(x.clicks)+'</td><td>'+gadsPct(x.imp?x.clicks/x.imp:null)+'</td><td>'+adUsd(x.clicks?x.cost/x.clicks:null)+'</td><td>'+gadsN(x.visits)+'</td><td>'+gadsN(x.checks)+'</td><td>'+gadsN(x.leads)+'</td></tr>';
+  }
+  h+='</table></div>';
+  /* daily detail with ids */
+  var det=(G.rows||[]).filter(function(x){ return x.iso>=first; }).slice().sort(function(p,q){ return p.iso<q.iso?1:p.iso>q.iso?-1:(q.cost-p.cost); });
+  h+='<details style="margin-top:12px"><summary style="cursor:pointer"><b>Daily detail with IDs</b> (account, campaign, ad group, ad, keyword · last 14 days · '+det.length+' rows)</summary><div class="tbl fit" style="margin-top:8px"><table><tr><th>Day</th><th>Day status</th><th>Account</th><th>Campaign</th><th>Ad group</th><th>Ad ID</th><th>Keyword</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Avg CPC</th><th>Visits</th><th>Date checks</th><th>Website leads</th></tr>';
+  det.forEach(function(x){
+    h+='<tr><td>'+esc(ccUs(x.iso))+'</td><td>'+esc(gadsDayStatus(x.iso))+'</td><td>'+esc((G.acct&&G.acct.name)||'')+' <span class="dim">'+esc(gadsAcctId(G.acct&&G.acct.id))+'</span></td><td>'+esc(x.camp||'')+' <span class="dim">'+esc(x.campId||'')+'</span></td><td>'+esc(x.ag||'')+' <span class="dim">'+esc(x.agId||'')+'</span></td><td>'+esc(x.adId||'—')+'</td><td>'+esc(x.kw||'(no keyword)')+'</td><td><b>'+adUsd(x.cost)+'</b></td><td>'+gadsN(x.imp)+'</td><td>'+gadsN(x.clicks)+'</td><td>'+gadsPct(x.imp?x.clicks/x.imp:null)+'</td><td>'+adUsd(x.clicks?x.cost/x.clicks:null)+'</td><td>'+gadsN(x.visits)+'</td><td>'+gadsN(x.checks)+'</td><td>'+gadsN(x.leads)+'</td></tr>';
+  });
+  if(!det.length) h+='<tr><td colspan="15" class="dim">No Google Ads activity in the last 14 days.</td></tr>';
+  h+='</table></div></details>';
+  h+='<p class="note">Coming with the Google Ads connection (it needs your Google Ads login, not Google Analytics): whether each campaign and ad is running and approved, Google’s own conversion count, “Limited by budget”, and the exact searches people typed. Leads: the real count is the inbox (“How did you hear about us?” = Google / Google ad); website leads here are GA4’s count of /thank-you visits from the ad, from 11/04/2026. In the “Ad spend” section above, Google Ads is shown but not yet added to the totals or the cost per contract.</p>';
+  return h+'</section>';
+}
+/* the Google Ads card inside "Ad spend & cost per contract": this month from GA4, not added to that section's totals yet */
+function gadsAdCard(){
+  var G=MK.gads;
+  if(!G||!G.days) return '<div class="kpi" style="--c:var(--muted)"><div class="k">Google Ads spend</div><div class="off">Not loaded</div><div class="s">See “Google Ads · from Google Analytics” below'+(G&&G.err?' · '+esc(G.err):'')+'</div></div>';
+  var a=gadsSum('month');
+  return '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Google Ads spend · this month · '+esc(G.cur||'USD')+'</div><div class="v money">'+adUsd(a.cost)+'</div>'+
+    '<div class="s">Running since '+esc(ccUs(G.from))+' · '+esc(gadsPeriod(a))+'<br>Per day <b>'+adUsd(a.daily)+'</b> · monthly <b>'+adUsd(a.monthly)+'</b>'+(a.fullDays?' (finished days)':'')+'<br>From Google Analytics, '+esc(gadsTzName(G.tz))+' · refreshed '+esc(G.updated||'—')+' · not in this section’s totals yet, details below</div></div>';
+}
+
 function renderMarketing(){
   var d=S.data, ig=S.mtab==='ig';
   var h='<header><div><h1>'+(ig?'Instagram <span class="ver">new</span>':'Marketing <span class="ver">alpha 2</span>')+'</h1><div class="sub">Only you see this · today '+esc(d.today)+
@@ -1723,6 +1846,7 @@ function renderMarketing(){
   h+='<div class="grid2 wide"><section class="sec"><h2>The funnel · '+esc(pName(t,sel))+'</h2><p class="lede">Solid = '+esc(pLabel(t,sel))+'. Dashed outline = '+esc(pLabel(t,pLY(t,sel)))+'.</p>'+mkFunnel()+'</section>'+
      '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
   h+=adSection();
+  h+=gadsSection(); // Google Ads, FROM GOOGLE ANALYTICS (11/07/2026)
   h+=pfSection();
   h+=clSection();
   h+=gaSection();
