@@ -1815,6 +1815,70 @@ function gadsAdCard(){
     '<div class="s">Running since '+esc(ccUs(G.from))+' · '+esc(gadsPeriod(a))+'<br>Per day <b>'+adUsd(a.daily)+'</b> · monthly <b>'+adUsd(a.monthly)+'</b>'+(a.fullDays?' (finished days)':'')+'<br>From Google Analytics, '+esc(gadsTzName(G.tz))+' · refreshed '+esc(G.updated||'—')+' · included in total ad spend and cost per contract, details below</div></div>';
 }
 
+/* ---------- Google ad trail (approved by Rafael in writing 11/08/2026): each couple from a Google ad, followed from the
+   click to the deposit. Server: GTrail.gs (MK.gtr). Spend and clicks: MK.gads (Google Analytics), since the campaign started. */
+function gtrAgName(id){ var G=MK.gads, n=''; ((G&&G.rows)||[]).some(function(x){ if(String(x.agId)===String(id)&&x.ag){ n=x.ag; return true; } return false; }); return n||(id?'ad group '+id:''); }
+function gtrKw(term,ag){ return term?esc(term)+(ag?' <span class="dim">· '+esc(gtrAgName(ag))+'</span>':''):'<span class="dim">not known</span>'; }
+function gtrSection(){
+  var T=MK.gtr, h='<section class="sec"><h2>Google ad trail · from the ad to the deposit</h2>';
+  if(!T) return h+'<div class="warn-box">The Google ad trail did not load.</div></section>';
+  if(T.err) h+='<div class="warn-box">Google ad trail: '+esc(T.err)+'</div>';
+  var n=T.counts||{}, g=(MK.gads&&MK.gads.days)?gadsSum('all'):null, cost=g?g.cost:null, C=T.couples||[], days=T.days||30;
+  h+='<p class="lede">Every couple who came from a Google ad since <b>'+esc(ccUs(T.from))+'</b> (the day the campaign started), followed step by step. '+
+     'A couple counts here when the inquiry form says <b>“Google ad”</b>, or when they checked a date coming from the ad and sent the form for that same wedding date within '+days+' days. '+
+     '<b>Qualified</b> (your definition, 11/08/2026) = passed the date check, sent the form, and within '+days+' days booked a consultation call — or signed and paid without a call. Each couple counts once.</p>';
+  function per(x){ return cost!==null&&x?adUsd(cost/x):'—'; }
+  var steps=[
+    ['Clicks on the ad', g?g.clicks:null, 'from Google Analytics'],
+    ['Date checks from the ad', n.checks||0, (n.checksFull||0)+' turned away (date full)'],
+    ['Inquiries (form sent)', n.inquiries||0, 'goal: '+adUsd(165)+' or less each'],
+    ['Qualified', n.qualified||0, (n.open||0)+' more still inside the '+days+' days'],
+    ['Contract signed', n.signed||0, ''],
+    ['Deposit paid', n.paid||0, 'a new client']];
+  h+='<div class="tbl fit"><table><tr><th>Step</th><th>Couples</th><th>Of the step before</th><th>Cost per (Google Ads spend '+adUsd(cost)+' since '+esc(ccUs(T.from))+')</th><th></th></tr>';
+  steps.forEach(function(s,i){
+    var prev=i?steps[i-1][1]:null, r=(i&&prev&&s[1]!==null&&s[1]<=prev)?Math.round(s[1]/prev*100)+'%':'';   // over 100% (e.g. form says "Google ad" without an ad-tagged date check) is left blank
+    h+='<tr><td>'+esc(s[0])+'</td><td><b>'+(s[1]===null?'—':gadsN(s[1]))+'</b></td><td>'+r+'</td><td>'+(s[1]===null?'—':per(s[1]))+'</td><td class="dim">'+esc(s[2])+'</td></tr>';
+  });
+  h+='</table></div>';
+  /* the couples */
+  if(C.length){
+    h+='<h3 style="margin:16px 0 6px;font-size:15px">Couples from the Google ad ('+C.length+') · newest first</h3><div class="tbl"><table><tr><th>Inquiry</th><th>Couple</th><th>Wedding</th><th>How we know</th><th>Keyword · ad group</th><th>Call booked</th><th>Qualified</th><th>Contract signed</th><th>Deposit paid</th></tr>';
+    C.forEach(function(c){
+      h+='<tr><td>'+esc(ccUs(c.received))+'</td><td><b>'+esc(c.name||'—')+'</b></td><td>'+esc(ccUs(c.wedding))+'</td><td>'+esc(c.how)+'</td><td>'+gtrKw(c.term,c.ag)+'</td>'+
+         '<td>'+(c.call?esc(ccUs(c.call)):'—')+'</td><td>'+(c.qualified?'<b>Yes</b>':c.open?'Not yet':'No')+'<div class="dim" style="font-size:12px">'+esc(c.why)+'</div></td>'+
+         '<td>'+(c.signed?esc(ccUs(c.signed)):'—')+'</td><td>'+(c.booked?(c.paid?esc(ccUs(c.paid)):'Yes'):'—')+'</td></tr>';
+    });
+    h+='</table></div>';
+  } else h+='<p class="sub" style="margin-top:10px">No couples from the Google ad yet: nobody has sent the form saying “Google ad”, and no date check from the ad has turned into an inquiry. The first couple shows up here on its own.</p>';
+  /* by keyword (from the date checks and the couples) */
+  var K={}, key=function(t,a){ return (t||'')+'|'+(a||''); }, get=function(t,a){ var k=key(t,a); return K[k]||(K[k]={term:t,ag:a,checks:0,full:0,inq:0,q:0,paid:0}); };
+  (T.checks||[]).forEach(function(c){ var x=get(c.term,c.ag); x.checks++; if(c.status==='FULL') x.full++; });
+  C.forEach(function(c){ if(!c.term&&!c.ag) return; var x=get(c.term,c.ag); x.inq++; if(c.qualified) x.q++; if(c.booked) x.paid++; });
+  var ks=Object.keys(K).sort(function(a,b){ return K[b].checks-K[a].checks||K[b].inq-K[a].inq; });
+  if(ks.length){
+    h+='<h3 style="margin:16px 0 6px;font-size:15px">By keyword</h3><div class="tbl fit"><table><tr><th>Keyword · ad group</th><th>Date checks</th><th>Turned away</th><th>Inquiries</th><th>Qualified</th><th>Deposit paid</th></tr>';
+    ks.forEach(function(k){ var x=K[k]; h+='<tr><td>'+gtrKw(x.term,x.ag)+'</td><td><b>'+x.checks+'</b></td><td>'+x.full+'</td><td>'+x.inq+'</td><td>'+x.q+'</td><td>'+x.paid+'</td></tr>'; });
+    h+='</table></div><p class="note">Couples whose form says “Google ad” but who did not check a date from the ad first have no keyword, so they are not in this table.</p>';
+  }
+  /* the date checks themselves */
+  var ch=(T.checks||[]).slice().reverse();
+  if(ch.length){
+    h+='<details style="margin-top:12px"><summary style="cursor:pointer"><b>Date checks from the Google ad</b> ('+ch.length+' · newest first)</summary><div class="tbl fit" style="margin-top:8px"><table><tr><th>Checked</th><th>Wedding date asked</th><th>Answer</th><th>Keyword · ad group</th><th>Became an inquiry</th></tr>';
+    ch.forEach(function(c){ h+='<tr><td>'+esc(ccUs(c.at))+(c.time?' '+esc(c.time):'')+'</td><td>'+esc(ccUs(c.wedding))+'</td><td>'+(c.status==='FULL'?'Full (turned away)':c.status==='AVAILABLE'?'Open':esc(c.status||'—'))+'</td><td>'+gtrKw(c.term,c.ag)+'</td><td>'+(c.matched?'<b>Yes</b>':'No')+'</td></tr>'; });
+    h+='</table></div></details>';
+  }
+  /* plain "Google" answers */
+  var P=T.plain||[];
+  if(P.length){
+    h+='<details style="margin-top:12px"><summary style="cursor:pointer"><b>Answered just “Google”</b> ('+P.length+') — no date check from the ad, so probably free Google search or Google Maps. Not counted for the ad.</summary><div class="tbl fit" style="margin-top:8px"><table><tr><th>Inquiry</th><th>Couple</th><th>Wedding</th><th>Answer</th><th>Call booked</th><th>Deposit paid</th></tr>';
+    P.forEach(function(c){ h+='<tr><td>'+esc(ccUs(c.received))+'</td><td>'+esc(c.name||'—')+'</td><td>'+esc(ccUs(c.wedding))+'</td><td>'+esc(c.answer)+'</td><td>'+(c.call?esc(ccUs(c.call)):'—')+'</td><td>'+(c.booked?(c.paid?esc(ccUs(c.paid)):'Yes'):'—')+'</td></tr>'; });
+    h+='</table></div></details>';
+  }
+  h+='<p class="note">Where it comes from (read only): the “Leads” tab — form answers, calls booked, contracts and deposits, as the mail reader and the Sales Board fill them — and the date-check log (AVAILABILITY REQUESTS), which keeps the page address with the ad’s tags (keyword and ad group). Spend and clicks: Google Analytics, since '+esc(ccUs(T.from))+'.</p>'+
+     '<p class="note">Limits: a cancelled call does not show in the Leads tab yet, so Calendly is checked by hand. A couple who opens other pages before checking a date can lose the ad’s tags; the form answer “Google ad” still catches them. The Calendly consultation form has the “Google ad” choice since 11/08/2026.</p>';
+  return h+'</section>';
+}
 function renderMarketing(){
   var d=S.data, ig=S.mtab==='ig';
   var h='<header><div><h1>'+(ig?'Instagram <span class="ver">new</span>':'Marketing <span class="ver">alpha 2</span>')+'</h1><div class="sub">Only you see this · today '+esc(d.today)+
@@ -1848,6 +1912,7 @@ function renderMarketing(){
      '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
   h+=adSection();
   h+=gadsSection(); // Google Ads, FROM GOOGLE ANALYTICS (11/07/2026)
+  h+=gtrSection(); // Google ad trail (11/08/2026): each Google-ad couple from the click to the deposit
   h+=pfSection();
   h+=clSection();
   h+=gaSection();
