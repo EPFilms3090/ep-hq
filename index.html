@@ -1803,7 +1803,7 @@ function gadsSection(){
   });
   if(!det.length) h+='<tr><td colspan="15" class="dim">No Google Ads activity in the last 14 days.</td></tr>';
   h+='</table></div></details>';
-  h+='<p class="note">Coming with the Google Ads connection (it needs your Google Ads login, not Google Analytics): whether each campaign and ad is running and approved, Google’s own conversion count, “Limited by budget”, and the exact searches people typed. Leads: the real count is the inbox (“How did you hear about us?” = Google / Google ad); website leads here are GA4’s count of /thank-you visits from the ad, from 11/04/2026. In the “Ad spend” section above, Google Ads is included in Total ad spend and Cost per contract (from 11/06/2026).</p>';
+  h+='<p class="note">Now in “Google Ads · from Google Ads itself” below (read every evening through Zapier, no computer needed): whether the campaign and each ad is running and approved, Google’s own conversion count, “Limited by budget”, and the exact searches people typed. Leads: the real count is the inbox (“How did you hear about us?” = Google / Google ad); website leads here are GA4’s count of /thank-you visits from the ad, from 11/04/2026. In the “Ad spend” section above, Google Ads is included in Total ad spend and Cost per contract (from 11/06/2026).</p>';
   return h+'</section>';
 }
 /* the Google Ads card inside "Ad spend & cost per contract": this month from GA4, included in that section's totals since 11/08/2026 */
@@ -1879,6 +1879,72 @@ function gtrSection(){
      '<p class="note">Limits: a cancelled call does not show in the Leads tab yet, so Calendly is checked by hand. A couple who opens other pages before checking a date can lose the ad’s tags; the form answer “Google ad” still catches them. The Calendly consultation form has the “Google ad” choice since 11/08/2026.</p>';
   return h+'</section>';
 }
+/* ---------- Google Ads, FROM GOOGLE ADS ITSELF (approved by Rafael in writing 11/08/2026): the newest ep_gads_*.json the
+   cloud task saves every evening through Zapier (MK.gaf). Status and approval, Limited by budget, Google's own conversion
+   counts, search terms (weekly), and the watch's result. Read only. Server: GAdsFeed.gs */
+var GAF_REASON={BIDDING_STRATEGY_LEARNING:'Google’s bidding is still learning (normal in the first ~2 weeks)',BUDGET_CONSTRAINED:'Limited by budget',
+  HAS_ADS_DISAPPROVED:'Some ads are disapproved',HAS_ADS_LIMITED_BY_POLICY:'Some ads are limited by policy',MOST_ADS_UNDER_REVIEW:'Most ads are still under review',
+  BIDDING_STRATEGY_LIMITED:'Bidding is limited',BIDDING_STRATEGY_MISCONFIGURED:'Bidding is set up wrong',NOT_ELIGIBLE:'Not eligible',PAUSED:'Paused',
+  CAMPAIGN_PAUSED:'Campaign paused',CAMPAIGN_REMOVED:'Campaign removed',CAMPAIGN_ENDED:'Campaign ended',CAMPAIGN_PENDING:'Campaign not started yet',
+  MISSING_INVOICE:'Billing problem (missing invoice)',CALLOUTS_NOT_ELIGIBLE:'Callouts not eligible',SITELINKS_NOT_ELIGIBLE:'Sitelinks not eligible',
+  HAS_ADS_UNDER_REVIEW:'Some ads are under review',UNKNOWN:'(a detail Google does not name)'};
+function gafReason(r){ return GAF_REASON[r]||String(r||'').toLowerCase().replace(/_/g,' '); }
+function gafWord(s){ var m={ENABLED:'On',PAUSED:'Paused',REMOVED:'Removed',ELIGIBLE:'Eligible',LIMITED:'Eligible (limited)',NOT_ELIGIBLE:'Not eligible',PENDING:'Under review',
+  APPROVED:'Approved',APPROVED_LIMITED:'Approved (limited)',DISAPPROVED:'Disapproved',AREA_OF_INTEREST_ONLY:'Approved (limited area)',REVIEWED:'Reviewed',REVIEW_IN_PROGRESS:'Under review',
+  UNDER_APPEAL:'Under appeal',ELIGIBLE_MAY_SERVE:'Eligible (may serve)',SERVING:'Serving',NONE:'—',ADDED:'Added as keyword',EXCLUDED:'Blocked',ADDED_EXCLUDED:'Added and blocked'};
+  return m[s]||(s?String(s).charAt(0)+String(s).slice(1).toLowerCase().replace(/_/g,' '):'—'); }
+function gafWhen(iso){ if(!iso) return '—'; var d=String(iso); return ccUs(d.slice(0,10))+(d.length>15?' '+d.slice(11,16):''); }
+function gafSection(){
+  var F=MK.gaf, h='<section class="sec"><h2>Google Ads · from Google Ads itself</h2>';
+  if(!F||F.err&&!F.daily) return h+'<div class="warn-box">'+esc((F&&F.err)||'The daily Google Ads file did not load.')+'</div><p class="note">It is saved every evening (~5:40 PM) by the cloud task “EP Films Google Ads — daily feed + watch”, through Zapier. No computer needed.</p></section>';
+  var D=F.daily, W=(F.weekly&&F.weekly.weekly)||null, C=D.campaign||{}, w=D.watch||{};
+  h+='<p class="lede">Read from your Google Ads account through Zapier by a cloud task every evening (no computer needed) — the things Google Analytics cannot see. Last saved <b>'+esc(gafWhen(D.built))+'</b> (Central)'+(W?' · weekly check '+esc(ccUs(F.weekly.weekly.checked))+'':'')+'. Read only: nothing is changed in Google Ads.</p>';
+  if(F.err) h+='<div class="warn-box">'+esc(F.err)+'</div>';
+  /* the watch */
+  var flags=w.flags||[];
+  h+='<div class="'+(flags.length?'warn-box':'note')+'" style="margin:0 0 10px">'+(w.status==='all clear'||(!flags.length&&w.status)?'✅ <b>Watch: all clear.</b> No changes by Google or anyone else since the last check.':'⚠️ <b>Watch: '+esc(w.status||'needs attention')+'.</b>')+
+     (flags.length?'<ul style="margin:6px 0 0 18px">'+flags.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul>':'')+(w.emailed?'<div class="sub">An email went to info@epfilmsweddings.com.</div>':'')+'</div>';
+  /* status cards */
+  var reasons=(C.reasons||[]).filter(function(r){ return r!=='UNKNOWN'||(C.reasons||[]).length===1; });
+  var lim=(C.reasons||[]).indexOf('BUDGET_CONSTRAINED')>=0, last=(D.days||[]).slice(-1)[0]||null;
+  var ads=W?(W.ads||[]):[], ok=ads.filter(function(a){ return a.approval==='APPROVED'; }).length;
+  h+='<div class="kpis">'+
+    '<div class="kpi" style="--c:var(--c-spend)"><div class="k">Campaign · '+esc(C.name||'—')+'</div><div class="v" style="font-size:20px">'+esc(gafWord(C.status))+' · '+esc(gafWord(C.primary))+'</div><div class="s">'+(reasons.length?esc(reasons.map(gafReason).join(' · ')):'No problems reported')+'<br>Budget <b>'+adUsd(C.budget)+' / day</b> ('+adUsd(C.budget*30.4)+' monthly)'+(C.cpcCap?' · max '+adUsd(C.cpcCap)+' per click':'')+'</div></div>'+
+    '<div class="kpi" style="--c:var(--c-cost)"><div class="k">Limited by budget?</div><div class="v" style="font-size:20px">'+(lim?'Yes':'No')+'</div><div class="s">'+(last&&last.lostBudget!==undefined&&last.lostBudget!==null?'Searches missed because of budget on '+esc(ccUs(last.date))+': <b>'+gadsPct(last.lostBudget)+'</b> · shown on '+gadsPct(last.is)+' of the searches it could show on':'')+'<br>“Yes” over a full month is condition 1 of the budget-raise rule.</div></div>'+
+    '<div class="kpi" style="--c:var(--c-booked)"><div class="k">Ads approved</div><div class="v">'+(W?ok+' of '+ads.length:'—')+'</div><div class="s">'+(W?esc(ads.filter(function(a){ return a.approval!=='APPROVED'; }).map(function(a){ return a.group+': '+gafWord(a.approval); }).join(' · ')||'All approved and eligible'):'Comes with the weekly check')+'</div></div>'+
+  '</div>';
+  /* Google's own conversions */
+  var cv=(D.conversions&&D.conversions.rows)||[], byA={};
+  cv.forEach(function(r){ var k=r.action||'(unnamed)'; var x=byA[k]||(byA[k]={n:0,all:0}); x.n+=Number(r.conv)||0; x.all+=Number(r.all)||0; });
+  var ak=Object.keys(byA);
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Google’s own conversion count · '+esc((D.conversions&&D.conversions.label)||'last 30 days')+'</h3>';
+  if(ak.length){ h+='<div class="tbl fit"><table><tr><th>Conversion action</th><th>Conversions</th><th>All conversions</th></tr>'; ak.forEach(function(k){ h+='<tr><td>'+esc(k)+'</td><td><b>'+gadsN(byA[k].n)+'</b></td><td>'+gadsN(byA[k].all)+'</td></tr>'; }); h+='</table></div>'; }
+  else h+='<p class="sub">None yet. Google has not counted a lead (“EP Lead – Thank you page”) from the ad. Your inbox stays the real count (Google Ads Plan, section 10).</p>';
+  /* spend by day, from Google Ads (to compare with Google Analytics above) */
+  var ds=(D.days||[]).slice(-7).reverse();
+  if(ds.length){
+    h+='<h3 style="margin:16px 0 6px;font-size:15px">Day by day · as Google Ads counts it (Central time)</h3><div class="tbl fit"><table><tr><th>Day</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>Conversions</th><th>Shown on</th><th>Missed for budget</th></tr>';
+    ds.forEach(function(d){ h+='<tr><td>'+esc(ccUs(d.date))+'</td><td><b>'+adUsd(d.cost)+'</b></td><td>'+gadsN(d.impr)+'</td><td>'+gadsN(d.clicks)+'</td><td>'+gadsN(d.conv)+'</td><td>'+gadsPct(d.is)+'</td><td>'+gadsPct(d.lostBudget)+'</td></tr>'; });
+    h+='</table></div><p class="note">Google Ads days run in Central time; the Google Analytics numbers above run in Pacific time, so a single day can differ a little. “Shown on” = of all the searches the ad could have shown on, how many it did.</p>';
+  }
+  /* weekly: search terms + setup */
+  if(W){
+    var st=(W.searchTerms&&W.searchTerms.rows)||[];
+    h+='<h3 style="margin:16px 0 6px;font-size:15px">What people searched · '+esc((W.searchTerms&&W.searchTerms.label)||'')+' (weekly check '+esc(ccUs(W.checked))+')</h3>';
+    if(st.length){ h+='<div class="tbl fit"><table><tr><th>They searched</th><th>Matched keyword</th><th>Ad group</th><th>Impressions</th><th>Clicks</th><th>Spend</th><th>Status</th></tr>';
+      st.slice().sort(function(a,b){ return (b.clicks-a.clicks)||(b.impr-a.impr); }).forEach(function(r){ h+='<tr><td><b>'+esc(r.term)+'</b></td><td>'+esc(r.keyword||'—')+(r.match?' <span class="dim">('+esc(String(r.match).toLowerCase())+')</span>':'')+'</td><td>'+esc(r.group||'—')+'</td><td>'+gadsN(r.impr)+'</td><td>'+gadsN(r.clicks)+'</td><td>'+adUsd(r.cost)+'</td><td>'+esc(gafWord(r.status))+'</td></tr>'; });
+      h+='</table></div><p class="note">Google hides some searches for privacy, so this list can add up to less than the clicks.</p>'; }
+    else h+='<p class="sub">No searches reported yet.</p>';
+    var s=W.setup||{};
+    h+='<details style="margin-top:12px"><summary style="cursor:pointer"><b>Setup check</b> (weekly) — keywords, blocked words, places, extras, who has access</summary><div class="tbl fit" style="margin-top:8px"><table>'+
+      '<tr><td>Keywords</td><td>'+(s.keywords?esc(s.keywords):'—')+'</td></tr><tr><td>Blocked words (negatives)</td><td>'+(s.negatives!==undefined&&s.negatives!==null?esc(s.negatives):'—')+'</td></tr>'+
+      '<tr><td>Places (counties)</td><td>'+(s.locations!==undefined&&s.locations!==null?esc(s.locations):'—')+'</td></tr><tr><td>Extras on the campaign</td><td>'+(s.assets?esc(s.assets):'—')+'</td></tr>'+
+      '<tr><td>Account extras</td><td>'+(s.accountAssets?esc(s.accountAssets):'—')+'</td></tr><tr><td>Auto-apply (Google changing things by itself)</td><td>'+(s.autoApply?esc(s.autoApply):'—')+'</td></tr>'+
+      '<tr><td>Who has access</td><td>'+(s.access?esc(s.access):'—')+'</td></tr></table></div></details>';
+  }
+  h+='<p class="note">Saved by the cloud task “EP Films Google Ads — daily feed + watch” as '+esc(D._name||'')+' in the same Drive folder as the 3am ad-spend files. Uses about 6 Zapier tasks a day plus ~18 on the weekly check.</p>';
+  return h+'</section>';
+}
 function renderMarketing(){
   var d=S.data, ig=S.mtab==='ig';
   var h='<header><div><h1>'+(ig?'Instagram <span class="ver">new</span>':'Marketing <span class="ver">alpha 2</span>')+'</h1><div class="sub">Only you see this · today '+esc(d.today)+
@@ -1912,6 +1978,7 @@ function renderMarketing(){
      '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
   h+=adSection();
   h+=gadsSection(); // Google Ads, FROM GOOGLE ANALYTICS (11/07/2026)
+  h+=gafSection(); // Google Ads FROM GOOGLE ADS ITSELF (11/08/2026): the daily cloud file through Zapier
   h+=gtrSection(); // Google ad trail (11/08/2026): each Google-ad couple from the click to the deposit
   h+=pfSection();
   h+=clSection();
