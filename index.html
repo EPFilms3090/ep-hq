@@ -238,7 +238,7 @@
   .mk .season .pk{color:var(--up);background:rgba(140,245,168,.10)} .mk .season .sl{color:var(--down);background:rgba(255,154,139,.10)}
   .mk .mklist{margin:10px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6} .mk .mklist .dim{color:var(--muted)}
   .mk{--c-profit:#8CF5A8;--c-margin:#F0CF85;--c-crew:#B9A6FF}
-  .mk td.neg,.mk .v.neg{color:var(--down)} .mk .est{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#1A1405;background:#F0CF85;border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+  .mk td.neg,.mk .v.neg{color:var(--down)} .mk .est.act{background:#B7D6B1} .mk .est.wait{background:#CFC5BC} .mk .est{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#1A1405;background:#F0CF85;border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px}
   .mk .be{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px;margin:8px 0 12px}
   .mk .be label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
   .mk .be input{font:inherit;font-size:15px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--field);color:var(--ink);width:100%;box-sizing:border-box}
@@ -1436,13 +1436,37 @@ function pfMon(k){ return monthName(k,1)+' '+k.slice(0,4); }
 function pfRange(L){ return L&&L.from?pfMon(L.from)+' – '+pfMon(L.to):'—'; }
 function pfDays(k){ return new Date(Date.UTC(+k.slice(0,4),+k.slice(5,7),0)).getUTCDate(); }
 function pfMoney3(x,days){ if(x===null||x===undefined) return '—'; var d=days?x/days:null; return '<b>'+pfUsd(x)+'</b><br><span class="dim">'+pfUsd(d)+' / day · '+pfUsd(d===null?null:d*30.4)+' / mo</span>'; }
+/* ---------- Costs by type, month status and real profit per wedding (approved by Rafael 11/09/2026). */
+function pfBadge(r){ var s=r.status||(r.est?'Estimated':'Actual'), m=(r.split&&r.split.missing)||'';
+  if(s==='Actual') return '<span class="est act" title="Actual costs from the statements">actual</span>';
+  if(s==='Waiting') return '<span class="est wait" title="'+esc(m||'Statements not in yet')+'">waiting</span>';
+  return '<span class="est" title="Estimated: '+esc(m||r.note||'')+'">est.</span>'; }
+function pfSplitTable(P){
+  var rows=P.rows.filter(function(r){return r.split;}).slice().reverse(); if(!rows.length) return '';
+  function c(x){ return x===null||x===undefined?'<span class="dim">—</span>':pfUsd(x); }
+  var h='<h3 style="margin:16px 0 6px;font-size:15px">Costs by type · month by month</h3><p class="note" style="margin:0 0 8px">“—” = not known yet, never counted as $0. Shooters = crew & editors from the bank minus editing. Editing = Sanjay + Betania from PAGOS (Gilbert’s edit fees stay in shooters until the payroll chat saves them per wedding). Meta = both Meta ad accounts (Prism Haus ads included). Other overhead = assistant, travel, gear, insurance, phones, CPA and other.</p>';
+  h+='<div class="tbl fit"><table><tr><th>Month</th><th>Shooters & seconds</th><th>Editing</th><th>Meta ads</th><th>Google ads</th><th>Other marketing</th><th>Software</th><th>Payment fees</th><th>Owner pay</th><th>Cars</th><th>Other overhead</th><th>Total</th></tr>';
+  rows.forEach(function(r){ var s=r.split;
+    h+='<tr><td>'+esc(pfMon(r.key))+pfBadge(r)+'</td><td>'+c(s.shooters)+'</td><td>'+c(s.editing)+'</td><td>'+c(s.meta)+'</td><td>'+c(s.google)+'</td><td>'+c(s.otherAds)+'</td><td>'+c(s.software)+'</td><td>'+c(s.fees)+'</td><td>'+c(s.owner)+'</td><td>'+c(s.cars)+'</td><td>'+c(s.overhead)+'</td><td><b>'+pfUsd(r.total)+'</b>'+(r.status==='Waiting'?'<br><span class="dim">so far</span>':'')+'</td></tr>'; });
+  return h+'</table></div>';
+}
+function pfWedTable(P){
+  var W=P.wc; if(!W||!W.pkg) return P.wcErr?'<p class="note">Real profit per wedding: '+esc(P.wcErr)+'</p>':'';
+  var ks=Object.keys(W.pkg).sort(function(a,b){return W.pkg[b].n-W.pkg[a].n;}); if(!ks.length) return '';
+  var h='<h3 style="margin:16px 0 6px;font-size:15px">Real profit per wedding · by package · weddings '+esc(W.from)+' to '+esc(W.to)+'</h3>';
+  h+='<div class="tbl fit"><table><tr><th>Package</th><th>Weddings</th><th>Avg contract</th><th>Avg crew paid</th><th>Avg editing</th><th>Avg cost</th><th>Avg profit</th></tr>';
+  ks.forEach(function(k){ var x=W.pkg[k]; h+='<tr><td>'+esc(k)+'</td><td><b>'+x.n+'</b></td><td>'+pfUsd(x.total)+'</td><td>'+pfUsd(x.crew)+'</td><td>'+pfUsd(x.edit)+'</td><td>'+pfUsd(x.cost)+'</td><td class="'+(x.profit<0?'neg':'')+'"><b>'+pfUsd(x.profit)+'</b></td></tr>'; });
+  return h+'</table></div><p class="note">Only weddings whose crew pay is the real PAGOS amount (the shooter’s only job that week, or that week split by hours). Gilbert-led weddings are left out until the payroll chat saves his pay per wedding. Editing = Sanjay or Gilbert per video (matched to PAGOS since the Editing board started on 10/23, your rates before) + Betania’s $1,200/month split by her videos. Your own pay is not included (it is owner pay). Source: “EP Wedding costs 2026” in the EP Dashboard folder, updated '+esc(W.updated)+'.</p>';
+}
 function pfSection(){
   var P=MK.profit, h='<section class="sec"><h2>Profit · money received minus costs</h2>';
   if(!P||!P.rows||!P.rows.length) return h+'<div class="warn-box">No profit numbers yet.'+(P&&P.err?' '+esc(P.err):'')+'</div></section>';
   var L=P.last12, Y=P.ytd;
-  h+='<p class="lede">Money received = all payments that came in that month (the Sales Board, before fees). Costs = the “Costs” tab (business checking + Amex from the CPA folder; crew cross-checked with PAGOS). Profit = money received − costs. Margin = profit ÷ money received. Per day = ÷ days; per month = per day × 30.4.</p>';
+  h+='<p class="lede">Money received = all payments that came in that month (the Sales Board, before fees). Costs = the “Costs” tab (business checking, Amex and PayPal statements; crew from PAGOS). Each month is marked actual, est. (estimated) or waiting (statements not in yet). Profit = money received − costs. Margin = profit ÷ money received. Per day = ÷ days; per month = per day × 30.4.</p>';
   if(P.err) h+='<div class="warn-box">Profit: '+esc(P.err)+'</div>';
-  if(L.est) h+='<p class="note" style="margin:0 0 10px"><span class="est">est.</span> '+L.est+' of the last 12 months have estimated costs (missing statement or fees estimated) — yellow in the Costs tab.</p>';
+  var WT=P.rows.filter(function(r){return r.status==='Waiting';});
+  if(WT.length) h+='<p class="note" style="margin:0 0 6px"><span class="est wait">waiting</span> '+WT.map(function(r){return '<b>'+esc(pfMon(r.key))+'</b>'+(r.split&&r.split.missing?' — missing: '+esc(r.split.missing):'');}).join(' · ')+'. Its profit shows once the statements are in (never as $0).</p>';
+  if(L.est) h+='<p class="note" style="margin:0 0 10px"><span class="est">est.</span> '+L.est+' of the last 12 months have estimated costs: '+P.rows.filter(function(r){return r.status==='Estimated'&&r.key>=L.from&&r.key<=L.to;}).map(function(r){return esc(pfMon(r.key))+(r.split&&r.split.missing?' ('+esc(r.split.missing)+')':'');}).join(', ')+'. Yellow in the Costs tab.</p>';
   var dL=L.days||365;
   h+='<h3 style="margin:4px 0 8px;font-size:15px">Last 12 months · '+esc(pfRange(L))+'</h3><div class="kpis">'+
     '<div class="kpi" style="--c:var(--c-profit)"><div class="k">Profit</div><div class="v money'+(L.profit<0?' neg':'')+'">'+pfUsd(L.profit)+'</div><div class="s">'+pfUsd(L.profit/dL)+' / day · <b>'+pfUsd(L.profit/dL*30.4)+'</b> / month</div></div>'+
@@ -1466,10 +1490,11 @@ function pfSection(){
   h+='<h3 style="margin:16px 0 6px;font-size:15px">Month by month</h3><p class="note" style="margin:0 0 8px">Each row is that month’s total. “12-mo rolling” = profit ÷ new contracts over the 12 months ending that month. Crew cost per wedding is rolling (up to 12 months) and starts in 2026: the master has no 2025 weddings tab.</p>';
   h+='<div class="tbl fit"><table><tr><th>Month</th><th>Money received</th><th>Costs</th><th>Profit</th><th>Margin</th><th>Before owner pay & cars</th><th>New contracts</th><th>Profit / contract</th><th>12-mo rolling</th><th>Weddings shot</th><th>Crew / wedding</th></tr>';
   P.rows.slice().reverse().forEach(function(r){
-    h+='<tr><td>'+esc(pfMon(r.key))+(r.est?'<span class="est" title="Estimated costs: '+esc(r.note)+'">est.</span>':'')+'</td><td>'+pfUsd(r.money)+'</td><td>'+pfUsd(r.total)+'</td><td class="'+(r.profit<0?'neg':'')+'"><b>'+pfUsd(r.profit)+'</b></td><td>'+pfPct(r.margin)+'</td><td>'+pfUsd(r.before)+'</td><td>'+(r.contracts===null?'—':r.contracts)+'</td><td>'+pfUsd(r.ppc)+'</td><td>'+pfUsd(r.ppc12)+'</td><td>'+(r.weddings===null?'—':r.weddings)+'</td><td>'+pfUsd(r.crewPer)+'</td></tr>';
+    var wt=r.status==='Waiting'; h+='<tr><td>'+esc(pfMon(r.key))+pfBadge(r)+'</td><td>'+pfUsd(r.money!==null?r.money:r.cash)+'</td><td>'+pfUsd(r.total)+(wt?'<br><span class="dim">so far</span>':'')+'</td><td class="'+(r.profit<0?'neg':'')+'">'+(wt?'<span class="dim">waiting</span>':'<b>'+pfUsd(r.profit)+'</b>')+'</td><td>'+pfPct(r.margin)+'</td><td>'+pfUsd(r.before)+'</td><td>'+(r.contracts===null?'—':r.contracts)+'</td><td>'+pfUsd(r.ppc)+'</td><td>'+pfUsd(r.ppc12)+'</td><td>'+(r.weddings===null?'—':r.weddings)+'</td><td>'+pfUsd(r.crewPer)+'</td></tr>';
   });
   h+='</table></div>';
-  if(P.rows.some(function(r){return r.money===null;})) h+='<p class="note">'+P.rows.filter(function(r){return r.money===null;}).map(function(r){return pfMon(r.key);}).join(', ')+': costs are in, but EP HQ has no money-received figure for those months (the Sales Board starts in 2025), so no profit is shown.</p>';
+  if(P.rows.some(function(r){return r.money===null&&r.status!=='Waiting';})) h+='<p class="note">'+P.rows.filter(function(r){return r.money===null&&r.status!=='Waiting';}).map(function(r){return pfMon(r.key);}).join(', ')+': costs are in, but EP HQ has no money-received figure for those months (the Sales Board starts in 2025), so no profit is shown.</p>';
+  h+=pfSplitTable(P);
   /* per package */
   var pk=P.pkg||{}, ks=Object.keys(pk).sort(function(a,b){ return pk[b].total-pk[a].total; });
   h+='<h3 style="margin:16px 0 6px;font-size:15px">Per package · deposits paid '+esc(pfRange(L))+'</h3>';
@@ -1479,7 +1504,8 @@ function pfSection(){
     ks.forEach(function(k){ h+='<tr><td>'+esc(k)+'</td><td><b>'+pk[k].n+'</b></td><td>'+pfUsd(pk[k].avg)+'</td><td>'+pfUsd(pk[k].total)+'</td><td>'+pfPct(tot?pk[k].total/tot:null)+'</td></tr>'; });
     h+='<tr class="sel"><td><b>All</b></td><td><b>'+P.priceN+'</b></td><td><b>'+pfUsd(P.avgPrice)+'</b></td><td><b>'+pfUsd(tot)+'</b></td><td>100%</td></tr></table></div>';
   } else h+='<p class="sub">No contract totals on the Leads tabs for these months yet.</p>';
-  h+='<p class="note">From the new Package / Contract total columns on the Leads tabs (from the signed contracts). Profit per package is not possible yet: shooter pay is a monthly total, not per wedding.'+(P.leadsNote?' Last fill: '+esc(P.leadsNote)+'.':'')+'</p>';
+  h+='<p class="note">From the new Package / Contract total columns on the Leads tabs (from the signed contracts). Real profit per wedding, by package, is in the next table.'+(P.leadsNote?' Last fill: '+esc(P.leadsNote)+'.':'')+'</p>';
+  h+=pfWedTable(P);
   h+=pfBreakEven();
   h+='<p class="note">Tabs in the EP Command Center sheet: “Costs” (Total costs = SUM of B:N; yellow = estimated), “Price log”, “Ad spend - monthly backfill” and “Profit” (rebuilt from the others). Change a cost in the Costs tab and this updates on the next load.</p>';
   return h+'</section>';
