@@ -1920,6 +1920,27 @@ function gafWord(s){ var m={ENABLED:'On',PAUSED:'Paused',REMOVED:'Removed',ELIGI
   UNDER_APPEAL:'Under appeal',ELIGIBLE_MAY_SERVE:'Eligible (may serve)',SERVING:'Serving',NONE:'—',ADDED:'Added as keyword',EXCLUDED:'Blocked',ADDED_EXCLUDED:'Added and blocked'};
   return m[s]||(s?String(s).charAt(0)+String(s).slice(1).toLowerCase().replace(/_/g,' '):'—'); }
 function gafWhen(iso){ if(!iso) return '—'; var d=String(iso); return ccUs(d.slice(0,10))+(d.length>15?' '+d.slice(11,16):''); }
+/* ---------- Meta ads per ad set and per ad (approved by Rafael 11/09/2026): the newest nightly file (MK.maf). Meta's lead count is a hint only. */
+function mafRow(x,w,kind){ var m=x[w]||{}, s=+m.spend||0, l=+m.leads||0, c=+m.clicks||0, im=+m.impr||0;
+  return '<tr><td>'+esc(x.name||'')+'<br><span class="dim">'+esc(kind==='ad'?(x.adset||''):(x.campaign||''))+'</span></td><td>'+esc(x.company||'')+'</td><td>'+esc(String(x.status||'').replace(/_/g,' ').toLowerCase())+'</td><td><b>'+pfUsd(s)+'</b></td><td>'+(im?im.toLocaleString('en-US'):'0')+'</td><td>'+c+'</td><td>'+(im?(c/im*100).toFixed(2)+'%':'—')+'</td><td>'+(c?pfUsd(s/c):'—')+'</td><td>'+l+'</td><td>'+(l?pfUsd(s/l):'—')+'</td></tr>'; }
+function mafSection(){
+  var F=MK.maf, h='<section class="sec"><h2>Meta ads · by ad set and by ad</h2>';
+  if(!F||F.err||!F.adsets) return h+'<div class="warn-box">'+esc((F&&F.err)||'No Meta ad set file yet.')+'</div></section>';
+  var W=S.mafw||'last30', lab={yesterday:'Yesterday',month:'This month',last30:'Last 30 days'};
+  h+='<div class="row" style="margin:0 0 8px">'+['yesterday','month','last30'].map(function(k){ return '<button class="chip'+(W===k?' on':'')+'" onclick="S.mafw=\''+k+'\';renderMarketing()">'+lab[k]+' <span class="dim">'+esc((F.windows||{})[k]||'')+'</span></button>'; }).join(' ')+'</div>';
+  var T=(F.totals||{})[W]||{};
+  h+='<p class="lede">Spend, '+esc(lab[W].toLowerCase())+': EP '+pfUsd(T.ep)+' · Prism Haus '+pfUsd(T.prism)+' · boosted posts '+pfUsd(T.boosted)+'. Saved '+esc(F.built||'')+'.</p>';
+  if(F.warnings&&F.warnings.length) h+='<div class="warn-box">'+F.warnings.map(esc).join('<br>')+'</div>';
+  function tbl(list,kind){
+    list=list.filter(function(x){ return ((x[W]||{}).spend||0)>0||/^ACTIVE$/.test(x.status||''); }).sort(function(a,b){ return ((b[W]||{}).spend||0)-((a[W]||{}).spend||0); });
+    if(!list.length) return '<p class="sub">Nothing spent in this period.</p>';
+    return '<div class="tbl fit"><table><tr><th>'+(kind==='ad'?'Ad':'Ad set')+'</th><th>Company</th><th>Status</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>Click rate</th><th>Cost per click</th><th>Meta leads</th><th>Cost per Meta lead</th></tr>'+list.map(function(x){ return mafRow(x,W,kind); }).join('')+'</table></div>';
+  }
+  h+='<h3 style="margin:12px 0 6px;font-size:15px">Ad sets</h3>'+tbl(F.adsets||[],'adset');
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Ads</h3>'+tbl(F.ads||[],'ad');
+  h+='<p class="note">Straight from Meta, read every night around 3:10 AM by a cloud task (read only; it never changes the ads). “Meta leads” is Meta’s own count from the website pixel: a hint, not the truth. Real leads come from the inbox and the Leads tab.</p>';
+  return h+'</section>';
+}
 function gafSection(){
   var F=MK.gaf, h='<section class="sec"><h2>Google Ads · from Google Ads itself</h2>';
   if(!F||F.err&&!F.daily) return h+'<div class="warn-box">'+esc((F&&F.err)||'The daily Google Ads file did not load.')+'</div><p class="note">It is saved every evening (~5:40 PM) by the cloud task “EP Films Google Ads — daily feed + watch”, through Zapier. No computer needed.</p></section>';
@@ -2004,7 +2025,7 @@ function renderMarketing(){
      '<section class="sec"><h2>Against '+(t==='year'?'last year':'the '+(t==='month'?'month':'quarter')+' before and last year')+'</h2><p class="lede">Green = better, red = worse. “Per 100 inquiries” compares what happened in the same period.</p>'+mkCompareTable()+'</section></div>';
   h+=adSection();
   h+=gadsSection(); // Google Ads, FROM GOOGLE ANALYTICS (11/07/2026)
-  h+=gafSection(); // Google Ads FROM GOOGLE ADS ITSELF (11/08/2026): the daily cloud file through Zapier
+  h+=mafSection(); h+=gafSection(); // Google Ads FROM GOOGLE ADS ITSELF (11/08/2026): the daily cloud file through Zapier
   h+=gtrSection(); // Google ad trail (11/08/2026): each Google-ad couple from the click to the deposit
   h+=pfSection();
   h+=clSection();
