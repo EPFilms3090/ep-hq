@@ -942,13 +942,31 @@ function renderBLanes(){
   BLANES.forEach(function(l){
     if(S.bfilter!=='all' && S.bfilter!==l[0]) return;
     var list=shown.filter(function(x){ return inLane(x,l[0],m); });
+    if(l[0]==='booked') list=bSortBooked(list);
     var sub=l[0]==='new'?'The website form, or a call booked without the form':l[0]==='sent'?'Sent in '+monthName(m)+', plus every contract still open ('+life+' days)':l[0]==='signed'?'Signed in '+monthName(m)+', plus anyone still without a deposit':l[0]==='follow'?'No call or contract 3+ days after the inquiry, or the contract expired':'';
-    h+='<section class="lane"><h2><span>'+esc(l[1])+'</span><span>'+list.length+'</span></h2>'+(sub?'<div class="lsub">'+esc(sub)+'</div>':'')+
+    h+='<section class="lane"><h2><span>'+esc(l[1])+'</span><span>'+list.length+'</span></h2>'+(sub?'<div class="lsub">'+esc(sub)+'</div>':'')+(l[0]==='booked'?bSortCtl():'')+
       (list.length?list.map(function(x){ return brideHtml(x,l[0]); }).join(''):'<div class="empty">Nothing here</div>')+'</section>';
   });
   document.getElementById('lanes').innerHTML=h;
   linkBars();
 }
+/* Booked column: sort by date booked (deposit paid). Asked by Rafael 11/10/2026. Display only, nothing is saved to any sheet. */
+function bPaidKey(s){ var m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m?m[3]+('0'+m[1]).slice(-2)+('0'+m[2]).slice(-2):''; }
+function bSortBooked(list){
+  var o=S.bsort||''; if(o!=='new'&&o!=='old') return list;
+  return list.map(function(x,i){ return {x:x,i:i,k:bPaidKey(x.paid)}; }).sort(function(a,b){
+    if(!a.k!==!b.k) return a.k?-1:1;
+    if(a.k!==b.k) return (a.k<b.k?-1:1)*(o==='new'?-1:1);
+    return a.i-b.i;
+  }).map(function(a){ return a.x; });
+}
+function bSortCtl(){
+  var o=S.bsort||'';
+  return '<div class="row" style="margin:-4px 4px 10px;gap:6px;align-items:center;flex-wrap:wrap"><span class="sub">Sort by date booked:</span>'+
+    [['','As is'],['new','Newest first'],['old','Oldest first']].map(function(b){ return '<button class="chip'+(o===b[0]?' on':'')+'" aria-pressed="'+(o===b[0])+'" onclick="setBSort(\''+b[0]+'\')">'+b[1]+'</button>'; }).join('')+'</div>';
+}
+function setBSort(v){ S.bsort=v; try{ localStorage.setItem('ep_bsort',v); }catch(e){} renderBLanes(); }
+try{ S.bsort=localStorage.getItem('ep_bsort')||''; }catch(e){ S.bsort=''; }
 function ago(n){ return n===0?'today':n===1?'yesterday':n+' days ago'; }
 function stagePill(x){
   var t={'Booked':['done','Booked'+(x.paid?' · paid '+x.paid:'')],'Signed, not paid':['late','Signed · no deposit yet'],'Contract sent':['upcoming','Contract out'],
