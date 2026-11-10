@@ -1592,7 +1592,7 @@ function clSection(){
   var C=MK.calls, h='<section class="sec"><h2>Calls · consultation calls booked</h2>';
   if(!C||C.err||!C.periods||!C.periods.month) return h+'<div class="warn-box">Calls could not load.'+(C&&C.err?' '+esc(C.err):'')+'</div></section>';
   var P=C.periods;
-  h+='<p class="lede">From the Leads tab as it is (read only). A call = “Call booked” has a date. Booked = deposit paid or Status “Booked”. Counted in the period of the call date; the no-call group = website-form inquiries with no call, counted by the date the lead came in. The same numbers are on the “Calls” tab of the EP Command Center sheet.</p>';
+  h+='<p class="lede">From the Leads tab as it is (read only). A call = “Call booked” has a date (the day the couple booked it). Since 11/10/2026 this includes calls booked by text (counted from 09/22/2026) and calls put on the weddings calendar by hand (counted from 04/01/2026), not only Calendly; “Call source” on the Leads tab says which. Booked = deposit paid or Status “Booked”. Counted in the period of the booking day; the no-call group = website-form inquiries with no call, counted by the date the lead came in. The same numbers are on the “Calls” tab of the EP Command Center sheet.</p>';
   h+='<div class="tbl fit"><table><tr><th></th>'+CLP.map(function(x){ var p=P[x[0]]; return '<th>'+x[1]+'<br><span class="dim">'+esc(ccUs(p.from))+' – '+esc(ccUs(p.to))+'</span></th>'; }).join('')+'</tr>'+
      '<tr class="grp"><td colspan="4">Couples who booked a call</td></tr>';
   [['Calls booked',function(p){return p.calls;}],['Of those, booked',function(p){return p.callsBooked;}],['Call → booking rate',function(p){return clPct(p.callRate);},1]].forEach(function(r){
@@ -2099,7 +2099,7 @@ function renderMarketing(){
        '<section class="sec"><h2>When each wedding month books</h2><p class="lede">Read across a row: the months in which those couples paid their deposit. Darker = more of that row. Hover a square for the number.</p>'+mkHeat()+
        '<ul class="mklist">'+mkHeatSummary()+'</ul></section></div>';
   }
-  h+='<p class="note">How it is counted: Inquiries = website forms plus consultation calls booked without a form · Calls = Calendly consultation calls · Contracts = first contract emailed · Signed = Dubsado signature · Booked = deposit paid (the Sales Board date wins). Each one counts in the month it happened. Quarters and years add up their months. Wedding dates come from the contract on the Sales Board, otherwise from the inquiry form. Test entries and rows marked IGNORE are left out. '+
+  h+='<p class="note">How it is counted: Inquiries = website forms plus consultation calls booked without a form · Calls = consultation calls booked: Calendly, the text follow-up (counted from 09/22/2026) and calls put on the weddings calendar by hand (counted from 04/01/2026), added on 11/10/2026; one call per couple, on the day it was booked · Contracts = first contract emailed · Signed = Dubsado signature · Booked = deposit paid (the Sales Board date wins). Each one counts in the month it happened. Quarters and years add up their months. Wedding dates come from the contract on the Sales Board, otherwise from the inquiry form. Test entries and rows marked IGNORE are left out. '+
      (MK.history&&MK.history.rows?'Last year: '+MK.history.rows+' brides from your emails, October 2024 to December 2025 (bookings from emails only, so they can be 1–2 off per month).':'')+'</p>';
   h+='</div>';
   document.getElementById('app').innerHTML=h;
