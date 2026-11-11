@@ -1465,7 +1465,7 @@ function pfSplitTable(P){
   var h='<h3 style="margin:16px 0 6px;font-size:15px">Costs by type · month by month</h3><p class="note" style="margin:0 0 8px">“—” = not known yet, never counted as $0. Shooters = crew & editors from the bank minus editing. Editing = Sanjay + Betania from PAGOS (Gilbert’s edit fees stay in shooters until the payroll chat saves them per wedding). Meta = both Meta ad accounts (Prism Haus ads included). Other overhead = assistant, travel, gear, insurance, phones & utilities, CPA & bookkeeping and other business (meals, medical, office, reimbursable, bank fees…).</p>';
   h+='<div class="tbl fit"><table><tr><th>Month</th><th>Shooters & seconds</th><th>Editing</th><th>Meta ads</th><th>Google ads</th><th>Other marketing</th><th>Software</th><th>Payment fees</th><th>Owner pay</th><th>Cars</th><th>Other overhead</th><th>Total</th></tr>';
   rows.forEach(function(r){ var s=r.split;
-    h+='<tr><td>'+esc(pfMon(r.key))+pfBadge(r)+'</td><td>'+c(s.shooters)+'</td><td>'+c(s.editing)+'</td><td>'+c(s.meta)+'</td><td>'+c(s.google)+'</td><td>'+c(s.otherAds)+'</td><td>'+c(s.software)+'</td><td>'+c(s.fees)+'</td><td>'+c(s.owner)+'</td><td>'+c(s.cars)+'</td><td>'+c(s.overhead)+'</td><td><b>'+pfUsd(r.total)+'</b>'+(r.status==='Waiting'?'<br><span class="dim">so far</span>':'')+'</td></tr>'; });
+    h+='<tr><td>'+esc(pfMon(r.key))+pfBadge(r)+'</td><td>'+c(s.shooters)+'</td><td>'+c(s.editing)+'</td><td>'+c(s.meta)+'</td><td>'+c(s.google)+'</td><td>'+c(s.otherAds)+'</td><td>'+c(s.software)+'</td><td>'+c(s.fees)+'</td><td>'+c(s.owner)+'</td><td>'+c(s.cars)+'</td><td>'+c(s.overhead)+'</td><td><b>'+pfUsd(r.oldTotal!==undefined?r.oldTotal:r.total)+'</b>'+(r.status==='Waiting'?'<br><span class="dim">so far</span>':'')+'</td></tr>'; });
   return h+'</table></div>';
 }
 function pfWedTable(P){
@@ -1491,10 +1491,10 @@ function pfQbBox(P){ var Q=P.qb; if(!Q||!Q.months) return '';
   function d(x){ return Math.abs(x)<0.005?'<span class="dim">$0</span>':'<b class="'+(x<0?'neg':'')+'">'+(x>0?'+':'')+pfUsd(x)+'</b>'; }
   var h='<h3 style="margin:16px 0 6px;font-size:15px">QuickBooks check · month by month</h3><p class="note" style="margin:0 0 8px">Costs come from QuickBooks (Profit and Loss, cash basis: cost of goods + expenses + other expenses), file <b>'+esc(Q.file)+'</b>, read '+esc(Q.synced||'')+'. QuickBooks is never changed. “Left out” = depreciation, a year-end accounting entry, not money spent. Income difference = Tower money received − QuickBooks income.</p>';
   h+='<div class="tbl fit"><table><tr><th>Month</th><th>QuickBooks costs</th><th>Left out</th><th>Tower costs</th><th>Costs difference</th><th>QuickBooks income</th><th>Tower money received</th><th>Income difference</th><th>Why</th></tr>';
-  rows.forEach(function(r){ var m=Q.months[r.key], cd=r.total-(m.qb-m.left), tw=r.cash, id=(tw===null||tw===undefined||m.income===null)?null:tw-m.income, k=PF_QB_INC[r.key];
+  rows.forEach(function(r){ var m=Q.months[r.key], cd=(r.oldTotal!==undefined?r.oldTotal:r.total)-(m.qb-m.left), tw=r.cash, id=(tw===null||tw===undefined||m.income===null)?null:tw-m.income, k=PF_QB_INC[r.key];
     var why=id===null?'':Math.abs(id)<0.005?'':(k&&Math.abs(id-k[0])<0.02?esc(k[1]):'<span class="dim">not checked yet</span>');
     if(Math.abs(cd)>=0.005) why=(why?why+'<br>':'')+'Costs differ: the Costs tab was edited after the QuickBooks file was read.';
-    h+='<tr><td>'+esc(pfMon(r.key))+pfBadge(r)+'</td><td>'+pfUsd(m.qb)+'</td><td>'+(m.left?pfUsd(m.left):'<span class="dim">—</span>')+'</td><td>'+pfUsd(r.total)+'</td><td>'+d(cd)+'</td><td>'+pfUsd(m.income)+'</td><td>'+(tw===null||tw===undefined?'<span class="dim">—</span>':pfUsd(tw))+'</td><td>'+(id===null?'<span class="dim">—</span>':d(id))+'</td><td>'+why+'</td></tr>'; });
+    h+='<tr><td>'+esc(pfMon(r.key))+pfBadge(r)+'</td><td>'+pfUsd(m.qb)+'</td><td>'+(m.left?pfUsd(m.left):'<span class="dim">—</span>')+'</td><td>'+pfUsd(r.oldTotal!==undefined?r.oldTotal:r.total)+'</td><td>'+d(cd)+'</td><td>'+pfUsd(m.income)+'</td><td>'+(tw===null||tw===undefined?'<span class="dim">—</span>':pfUsd(tw))+'</td><td>'+(id===null?'<span class="dim">—</span>':d(id))+'</td><td>'+why+'</td></tr>'; });
   h+='</table></div>';
   var du=Q.dups||[], xf=Q.xfer||[], sd=du.reduce(function(s,x){return s+x.amt;},0), sx=xf.reduce(function(s,x){return s+x.amt;},0);
   if(du.length) h+='<p class="note"><b>Possible duplicates in QuickBooks</b> (same day, same amount, same payee, same card): '+du.map(function(x){return esc(x.date)+' '+esc(x.who)+' '+pfUsd(x.amt);}).join(' · ')+'. Total '+pfUsd(sd)+'. They are counted (QuickBooks has them twice); ask the bookkeeper to check.</p>';
@@ -1502,10 +1502,10 @@ function pfQbBox(P){ var Q=P.qb; if(!Q||!Q.months) return '';
   if(Q.ferr) h+='<p class="note">'+esc(Q.ferr)+'</p>';
   return h; }
 function pfSection(){
-  var P=MK.profit, h='<section class="sec"><h2>Profit · money received minus costs</h2>';
+  var P=tsApply(MK.profit), h='<section class="sec"><h2>Profit · money received minus costs</h2>';
   if(!P||!P.rows||!P.rows.length) return h+'<div class="warn-box">No profit numbers yet.'+(P&&P.err?' '+esc(P.err):'')+'</div></section>';
   var L=P.last12, Y=P.ytd;
-  h+='<p class="lede">Money received = all payments that came in that month (the Sales Board, before fees). Costs = QuickBooks (Profit and Loss, cash basis), per cost type, from the file Grok uploads every Sunday; crew split, editing and ad accounts from PAGOS / Meta / Google. Each month is marked actual, est. (estimated) or waiting (month not over). Profit = money received − costs. Margin = profit ÷ money received. Per day = ÷ days; per month = per day × 30.4.</p>';
+  h+='<p class="lede">Money received = all payments that came in that month (the Sales Board, before fees). Costs = QuickBooks (Profit and Loss, cash basis), per cost type, from the file Grok uploads every Sunday; crew split, editing and ad accounts from PAGOS / Meta / Google. From January 2026 the costs below use the fixed/variable split (crew + editing per wedding, transfers to …4472 left out; Rafael 11/10/2026); the QuickBooks check and Costs by type tables keep QuickBooks’ own totals. Each month is marked actual, est. (estimated) or waiting (month not over). Profit = money received − costs. Margin = profit ÷ money received. Per day = ÷ days; per month = per day × 30.4.</p>';
   if(P.err) h+='<div class="warn-box">Profit: '+esc(P.err)+'</div>';
   h+=pfQbWarn(P);
   var WT=P.rows.filter(function(r){return r.status==='Waiting';});
@@ -1532,7 +1532,7 @@ function pfSection(){
   });
   h+='</table></div>';
   /* month by month, newest first */
-  h+='<h3 style="margin:16px 0 6px;font-size:15px">Month by month</h3><p class="note" style="margin:0 0 8px">Each row is that month’s total. “12-mo rolling” = profit ÷ new contracts over the 12 months ending that month. Crew cost per wedding is rolling (up to 12 months) and starts in 2026: the master has no 2025 weddings tab.</p>';
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Month by month</h3><p class="note" style="margin:0 0 8px">Each row is that month’s total (from January 2026: the fixed/variable costs). “12-mo rolling” = profit ÷ new contracts over the 12 months ending that month. Crew cost per wedding is rolling (up to 12 months) and starts in 2026: the master has no 2025 weddings tab.</p>';
   h+='<div class="tbl fit"><table><tr><th>Month</th><th>Money received</th><th>Costs</th><th>Profit</th><th>Margin</th><th>Before owner pay & cars</th><th>New contracts</th><th>Profit / contract</th><th>12-mo rolling</th><th>Weddings shot</th><th>Crew / wedding</th></tr>';
   P.rows.slice().reverse().forEach(function(r){
     var wt=r.status==='Waiting'; h+='<tr><td>'+esc(pfMon(r.key))+pfBadge(r)+'</td><td>'+pfUsd(r.money!==null?r.money:r.cash)+'</td><td>'+pfUsd(r.total)+(wt?'<br><span class="dim">so far</span>':'')+'</td><td class="'+(r.profit<0?'neg':'')+'">'+(wt?'<span class="dim">waiting</span>':'<b>'+pfUsd(r.profit)+'</b>')+'</td><td>'+pfPct(r.margin)+'</td><td>'+pfUsd(r.before)+'</td><td>'+(r.contracts===null?'—':r.contracts)+'</td><td>'+pfUsd(r.ppc)+'</td><td>'+pfUsd(r.ppc12)+'</td><td>'+(r.weddings===null?'—':r.weddings)+'</td><td>'+pfUsd(r.crewPer)+'</td></tr>';
@@ -1559,6 +1559,31 @@ function pfSection(){
   h+='<p class="note">Tabs in the EP Command Center sheet: “Costs” (Total costs = SUM of B:N; yellow = estimated), “Price log”, “Ad spend - monthly backfill” and “Profit” (rebuilt from the others). Change a cost in the Costs tab and this updates on the next load.</p>';
   return h+'</section>';
 }
+/* ---------- Profit section on the fixed/variable costs (Rafael 11/10/2026: "Yes, switch them"). Page only: months from January 2026 that have a
+   QuickBooks detail file get the new costs (crew + editing per wedding, …4472 transfers left out); profit, margin, before owner pay, profit per
+   contract, rolling numbers, crew per wedding, Last 12 / YTD and the break-even start values follow. The sheet tabs are not changed.
+   The old numbers stay in r.oldTotal / r.oldCrew for the QuickBooks check and Costs by type tables. */
+function tsPrev12(k){ var y=+k.slice(0,4), m=+k.slice(5,7)-11; while(m<1){ m+=12; y--; } return y+'-'+('0'+m).slice(-2); }
+function tsApply(P){
+  if(!P||P._ts||!P.rows) return P; P._ts=true;
+  var S2=(P.tg||{}).split; if(!S2||!S2.months) return P;
+  var n=0;
+  P.rows.forEach(function(r){ var o=S2.months[r.key]; if(r.key<'2026-01'||r.status==='Waiting'||!tsOk(o)) return;
+    var nt=tsTotal(o), d=nt-r.total; r.oldTotal=r.total; r.oldCrew=r.crew; r.fxDelta=(nt-o.var)-(r.total-(r.crew||0)); r.total=nt; r.crew=o.var; r.ts=true; n++;
+    if(r.profit!==null&&r.profit!==undefined){ r.profit-=d; var m=r.money!==null&&r.money!==undefined?r.money:r.cash; r.margin=m?r.profit/m:null;
+      if(r.before!==null&&r.before!==undefined) r.before-=d; r.ppc=r.contracts?r.profit/r.contracts:null; } });
+  if(!n) return P;
+  P.rows.forEach(function(x){ var w=P.rows.filter(function(z){ return z.key>=tsPrev12(x.key)&&z.key<=x.key; });
+    if(x.ppc12!==null&&x.ppc12!==undefined){ var pp=0,cc=0; w.forEach(function(z){ if(z.status!=='Waiting'&&z.profit!==null&&z.profit!==undefined){ pp+=z.profit; cc+=z.contracts||0; } }); x.ppc12=cc?pp/cc:null; }
+    if(x.crewPer!==null&&x.crewPer!==undefined){ var cr=0,wd=0; w.forEach(function(z){ if(z.weddings){ cr+=z.crew||0; wd+=z.weddings; } }); x.crewPer=wd?cr/wd:null; } });
+  [P.last12,P.ytd].forEach(function(A){ if(!A||!A.from) return; var w=P.rows.filter(function(z){ return z.key>=A.from&&z.key<=A.to&&z.status!=='Waiting'; });
+    if(!w.some(function(z){ return z.ts; })) return;
+    var t=0,p=0,b=0,cr=0,wd=0,fd=0; w.forEach(function(z){ t+=z.total||0; if(z.profit!==null&&z.profit!==undefined) p+=z.profit; if(z.before!==null&&z.before!==undefined) b+=z.before; if(z.weddings){ cr+=z.crew||0; wd+=z.weddings; } if(z.ts) fd+=z.fxDelta; });
+    A.oldTotal=A.total; A.total=t; A.profit=p; A.margin=A.money?p/A.money:null; A.before=b; A.ppc=A.contracts?p/A.contracts:null; A.crewPer=wd?cr/wd:null;
+    if(A.fixed!==null&&A.fixed!==undefined&&A.months) A.fixed+=fd/A.months; });
+  if(P.be&&P.last12){ P.be.crew=P.last12.crewPer; if(P.last12.fixed!==undefined) P.be.fixed=P.last12.fixed; }
+  return P;
+}
 /* ---------- Monthly costs · fixed and variable (Rafael's rules, 11/10/2026). QuickBooks cash basis, each month on its own, no overhead per wedding.
    Variable = crew + editing per wedding (PAGOS). Fixed = Maria, Darwing Digital, software, ads, MediaZilla, truck loans, medical, lawyer, gym.
    One-off = WAADOOX. Left out = transfers to …4472. Unlisted Contractors payees = "needs Rafael" (counted, not classified). */
@@ -1581,7 +1606,7 @@ function tsTable(P){
   h+='<div class="tbl fit"><table><tr><th>Month</th><th>Crew + editing<br><span class="dim">per wedding</span></th><th>Fixed</th><th>One-off</th><th>Needs Rafael</th><th>Everything else</th><th>Costs</th><th>Before<br><span class="dim">old Tower costs</span></th><th>Left out<br><span class="dim">transfers to …4472</span></th><th>Check line<br><span class="dim">QuickBooks crew pay − crew + editing</span></th></tr>';
   ks.forEach(function(k){ var o=S2.months[k], r=row(k), wt=r.status==='Waiting', ck=(o.qbcrew||0)-(o.var||0);
     h+='<tr><td>'+esc(pfMon(k))+(r.status?pfBadge(r):'')+'</td><td>'+pfUsd(o.var)+'<br><span class="dim">'+(o.wn||0)+' event'+(o.wn===1?'':'s')+(o.wmiss?' · '+o.wmiss+' without crew pay':'')+'</span></td><td>'+pfUsd(tsFix(o))+'</td><td>'+c(o.oneoff)+'</td><td>'+c(o.needs)+'</td><td>'+pfUsd(o.other||0)+'</td>'+
-      '<td><b>'+pfUsd(tsTotal(o))+'</b>'+(wt?'<br><span class="dim">so far</span>':'')+'</td><td>'+(r.total===undefined?'<span class="dim">—</span>':pfUsd(r.total))+'</td><td>'+c(o.x4472)+'</td><td class="'+(ck<0?'neg':'')+'">'+(ck>0?'+':'')+pfUsd(ck)+'</td></tr>'; });
+      '<td><b>'+pfUsd(tsTotal(o))+'</b>'+(wt?'<br><span class="dim">so far</span>':'')+'</td><td>'+(r.total===undefined?'<span class="dim">—</span>':pfUsd(r.oldTotal!==undefined?r.oldTotal:r.total))+'</td><td>'+c(o.x4472)+'</td><td class="'+(ck<0?'neg':'')+'">'+(ck>0?'+':'')+pfUsd(ck)+'</td></tr>'; });
   h+='</table></div>';
   h+='<p class="note">Check line = what QuickBooks paid shooters and editors that month minus the Tower’s crew + editing for that month’s weddings. It is a check, not a cost: it moves because people are paid the week after the wedding and editors on delivery (often a later month), and some events have no crew pay in the Tower yet. Shooters and editors counted on the QuickBooks side: Selwad Studio, DMC225, Films by Kara, Kreamedia, Andrea Manzanillo, Luis Moreno, plus the shooter sub-accounts under Contractors (Lugi = Gilbert, Victor Zambrano, Alexander Mirabal, Memories Forever = Ildemaro, Julio Madrid, Kelly Baez, Horande, Miguel Ramos, Edwin Herrera). Betania’s editing share is not in crew + editing because she is paid through Darwing Digital (fixed). Truck loans = the full Ally and GM Financial payments (QuickBooks books the whole payment as “Interest Paid”).</p>';
   h+='<div class="tbl fit"><table><tr><th>Fixed · month</th>'+TS_FIX.map(function(f){ return '<th>'+esc(f[1])+'</th>'; }).join('')+'<th>Fixed total</th></tr>';
