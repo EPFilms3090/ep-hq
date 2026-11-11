@@ -1539,6 +1539,7 @@ function pfSection(){
   });
   h+='</table></div>';
   if(P.rows.some(function(r){return r.money===null&&r.status!=='Waiting';})) h+='<p class="note">'+P.rows.filter(function(r){return r.money===null&&r.status!=='Waiting';}).map(function(r){return pfMon(r.key);}).join(', ')+': costs are in, but EP HQ has no money-received figure for those months (the Sales Board starts in 2025), so no profit is shown.</p>';
+  h+=tsTable(P);
   h+=tgTarget(P);
   h+=pfQbBox(P);
   h+=pfSplitTable(P);
@@ -1558,6 +1559,39 @@ function pfSection(){
   h+='<p class="note">Tabs in the EP Command Center sheet: “Costs” (Total costs = SUM of B:N; yellow = estimated), “Price log”, “Ad spend - monthly backfill” and “Profit” (rebuilt from the others). Change a cost in the Costs tab and this updates on the next load.</p>';
   return h+'</section>';
 }
+/* ---------- Monthly costs · fixed and variable (Rafael's rules, 11/10/2026). QuickBooks cash basis, each month on its own, no overhead per wedding.
+   Variable = crew + editing per wedding (PAGOS). Fixed = Maria, Darwing Digital, software, ads, MediaZilla, truck loans, medical, lawyer, gym.
+   One-off = WAADOOX. Left out = transfers to …4472. Unlisted Contractors payees = "needs Rafael" (counted, not classified). */
+var TS_FIX=[['maria','Maria (social media)'],['darwing','Darwing Digital'],['software','Software'],['ads','Ads'],['mediazilla','MediaZilla'],['loans','Truck loans'],['medical','Medical'],['legal','Lawyer & professional'],['gym','Gym']];
+function tsFix(o){ return TS_FIX.reduce(function(s,f){ return s+(o[f[0]]||0); },0); }
+function tsTotal(o){ return (o.var||0)+tsFix(o)+(o.oneoff||0)+(o.needs||0)+(o.other||0); }
+function tsOk(o){ return !!o&&o.qb!==null&&o.qb!==undefined&&o.var!==undefined; }
+function tgCostOf(P,r){ var S2=(P.tg||{}).split, o=S2&&S2.months?S2.months[r.key]:null;
+  if(r.key>='2026-01'&&r.status!=='Waiting'&&tsOk(o)) return {cost:tsTotal(o),split:true}; return {cost:r.total,split:false}; }
+function tgProfitOf(P,r){ var m=r.money!==null&&r.money!==undefined?r.money:r.cash; return m===null||m===undefined?r.profit:m-tgCostOf(P,r).cost; }
+function tsTable(P){
+  var T=P.tg||{}, S2=T.split, h='<h3 id="ts-split" style="margin:16px 0 6px;font-size:15px">Monthly costs · fixed and variable (QuickBooks, cash basis)</h3>';
+  if(T.splitErr) return h+'<div class="warn-box">Cost split: '+esc(T.splitErr)+'</div>';
+  if(!S2||!S2.months) return h+'<p class="note">No QuickBooks detail file yet.</p>';
+  var ks=Object.keys(S2.months).filter(function(k){ return k>='2026-01'&&tsOk(S2.months[k]); }).sort().reverse(); if(!ks.length) return h+'<p class="note">No 2026 months in the QuickBooks detail files yet.</p>';
+  function row(k){ return (P.rows||[]).filter(function(x){ return x.key===k; })[0]||{key:k}; }
+  function c(x){ return x?pfUsd(x):'<span class="dim">$0</span>'; }
+  if(S2.errs&&S2.errs.length) h+='<div class="warn-box">QuickBooks detail file problem: '+S2.errs.map(esc).join(' · ')+'</div>';
+  h+='<p class="note" style="margin:0 0 8px">Each month on its own, from QuickBooks (cash basis). <b>Crew + editing</b> = the Tower’s per-wedding crew and editing pay (PAGOS) for that month’s weddings, counted once. <b>Fixed</b> = Maria, Darwing Digital, software, ads, MediaZilla, truck loans, medical, lawyer & professional, gym (actual amount each month, breakdown below). <b>One-off</b> = WAADOOX. <b>Needs Rafael</b> = Contractors payees not on your list (still counted, see the list below). <b>Everything else</b> = the rest of QuickBooks as before (owner pay, PayPal fees, travel, gear, insurance, phones, meals…). Overhead is never split per wedding.</p>';
+  h+='<div class="tbl fit"><table><tr><th>Month</th><th>Crew + editing<br><span class="dim">per wedding</span></th><th>Fixed</th><th>One-off</th><th>Needs Rafael</th><th>Everything else</th><th>Costs</th><th>Before<br><span class="dim">old Tower costs</span></th><th>Left out<br><span class="dim">transfers to …4472</span></th><th>Check line<br><span class="dim">QuickBooks crew pay − crew + editing</span></th></tr>';
+  ks.forEach(function(k){ var o=S2.months[k], r=row(k), wt=r.status==='Waiting', ck=(o.qbcrew||0)-(o.var||0);
+    h+='<tr><td>'+esc(pfMon(k))+(r.status?pfBadge(r):'')+'</td><td>'+pfUsd(o.var)+'<br><span class="dim">'+(o.wn||0)+' event'+(o.wn===1?'':'s')+(o.wmiss?' · '+o.wmiss+' without crew pay':'')+'</span></td><td>'+pfUsd(tsFix(o))+'</td><td>'+c(o.oneoff)+'</td><td>'+c(o.needs)+'</td><td>'+pfUsd(o.other||0)+'</td>'+
+      '<td><b>'+pfUsd(tsTotal(o))+'</b>'+(wt?'<br><span class="dim">so far</span>':'')+'</td><td>'+(r.total===undefined?'<span class="dim">—</span>':pfUsd(r.total))+'</td><td>'+c(o.x4472)+'</td><td class="'+(ck<0?'neg':'')+'">'+(ck>0?'+':'')+pfUsd(ck)+'</td></tr>'; });
+  h+='</table></div>';
+  h+='<p class="note">Check line = what QuickBooks paid shooters and editors that month minus the Tower’s crew + editing for that month’s weddings. It is a check, not a cost: it moves because people are paid the week after the wedding and editors on delivery (often a later month), and some events have no crew pay in the Tower yet. Shooters and editors counted on the QuickBooks side: Selwad Studio, DMC225, Films by Kara, Kreamedia, Andrea Manzanillo, Luis Moreno, plus the shooter sub-accounts under Contractors (Lugi = Gilbert, Victor Zambrano, Alexander Mirabal, Memories Forever = Ildemaro, Julio Madrid, Kelly Baez, Horande, Miguel Ramos, Edwin Herrera). Betania’s editing share is not in crew + editing because she is paid through Darwing Digital (fixed). Truck loans = the full Ally and GM Financial payments (QuickBooks books the whole payment as “Interest Paid”).</p>';
+  h+='<div class="tbl fit"><table><tr><th>Fixed · month</th>'+TS_FIX.map(function(f){ return '<th>'+esc(f[1])+'</th>'; }).join('')+'<th>Fixed total</th></tr>';
+  ks.forEach(function(k){ var o=S2.months[k]; h+='<tr><td>'+esc(pfMon(k))+'</td>'+TS_FIX.map(function(f){ return '<td>'+c(o[f[0]])+'</td>'; }).join('')+'<td><b>'+pfUsd(tsFix(o))+'</b></td></tr>'; });
+  h+='</table></div>';
+  var nl=[]; ks.slice().reverse().forEach(function(k){ (S2.months[k].needsList||[]).forEach(function(x){ nl.push('<b>'+esc(x[0])+'</b> '+pfUsd(x[1])+' ('+esc(x[2])+')'); }); });
+  h+='<p class="note"><b>Needs Rafael</b> (Contractors payees not on your list; counted in costs, not classified): '+(nl.length?nl.join(' · '):'none')+'.</p>';
+  h+='<p class="note">Files: '+esc((S2.files||[]).join(', '))+(S2.wcUpdated?'; per-wedding crew file updated '+esc(S2.wcUpdated):'')+'. Read only: nothing in QuickBooks or the sheets is changed.</p>';
+  return h;
+}
 /* ---------- Monthly target line (asked by Rafael 11/10/2026). All in contract $.
    Minimum = (that month's costs − final payments due that month, i.e. next month's weddings: contract − deposit in the Master) ÷ 0.5285 (average deposit ratio).
    Goal = minimum + (2026 full-year profit × 16% ÷ 12) ÷ 0.5285, from January 2027. Nov–Dec 2026 and earlier: minimum only.
@@ -1565,7 +1599,7 @@ function pfSection(){
 var TG_DEP=0.5285, TG_GROW=0.16;
 function tgNext(k){ var y=+k.slice(0,4), m=+k.slice(5,7)+1; if(m>12){ m=1; y++; } return y+'-'+('0'+m).slice(-2); }
 function tgAddOn(P){ var r=(P.rows||[]).filter(function(x){ return x.key.slice(0,4)==='2026'&&x.status!=='Waiting'&&x.profit!==null&&x.profit!==undefined; });
-  var s=r.reduce(function(a,x){ return a+x.profit; },0); return { n:r.length, profit:s, final:r.length===12, month:r.length?s*TG_GROW/12:null, from:r.length?r[0].key:null, to:r.length?r[r.length-1].key:null }; }
+  var s=r.reduce(function(a,x){ return a+tgProfitOf(P,x); },0); return { n:r.length, profit:s, final:r.length===12, month:r.length?s*TG_GROW/12:null, from:r.length?r[0].key:null, to:r.length?r[r.length-1].key:null }; }
 function tgBooked(T,keys){ var o={n:0,amt:0,noCt:[]}; (T.bk||[]).forEach(function(b){ if(keys.indexOf(b.m)<0) return; o.n++; if(b.ct===null||b.ct===undefined) o.noCt.push(b.name||'(no name)'); else o.amt+=b.ct; }); return o; }
 function tgPctCell(a,b){ return b===null||b<=0?'<span class="dim">—</span>':'<b class="'+(a>=b?'up':'')+'">'+Math.round(a/b*1000)/10+'%</b>'; }
 function tgLeftCell(a,b){ return b===null?'<span class="dim">—</span>':(a>=b?'<span class="up"><b>reached</b></span><br><span class="dim">+'+pfUsd(a-b)+' over</span>':'<b>'+pfUsd(b-a)+'</b>'); }
@@ -1575,9 +1609,9 @@ function tgTarget(P){
   if(T.err) return h+'<div class="warn-box">Target line: '+esc(T.err)+'</div>';
   if(T.finErr) h+='<div class="warn-box">'+esc(T.finErr)+' Final payments are left blank, so no minimum is shown.</div>';
   var A=tgAddOn(P), addC=A.month===null?null:A.month/TG_DEP;
-  h+='<p class="note" style="margin:0 0 8px"><b>Minimum</b> = (that month’s costs − final payments due that month) ÷ 0.5285. Final payments due = next month’s weddings in the Master (contract − deposit paid), because finals come in one month before the wedding. The rest has to come from new bookings’ deposits, and a deposit is on average 52.85% of the contract, so ÷ 0.5285 turns it into contract $. '+
+  h+='<p class="note" style="margin:0 0 8px"><b>Minimum</b> = (that month’s costs − final payments due that month) ÷ 0.5285. Costs = “Monthly costs · fixed and variable” above from January 2026 (transfers to …4472 left out); earlier months use the Tower costs. Final payments due = next month’s weddings in the Master (contract − deposit paid), because finals come in one month before the wedding. The rest has to come from new bookings’ deposits, and a deposit is on average 52.85% of the contract, so ÷ 0.5285 turns it into contract $. '+
     '<b>Goal</b> = minimum + the profit add-on ÷ 0.5285, from January 2027 (Nov–Dec 2026 and earlier: minimum only). '+
-    'Profit add-on = 2026 full-year profit × 16% ÷ 12. '+(A.n?'2026 profit so far ('+esc(pfMon(A.from))+' – '+esc(pfMon(A.to))+', '+A.n+' months): <b>'+pfUsd(A.profit)+'</b> → '+pfUsd(A.month)+' of profit a month = <b>'+pfUsd(addC)+'</b> of contracts a month'+(A.final?'.':'. <b>Not final</b>: it is recalculated once December 2026 closes; until then 2027 months show no goal.'):'No 2026 profit yet.')+
+    'Profit add-on = 2026 full-year profit (money received − the costs above) × 16% ÷ 12. '+(A.n?'2026 profit so far ('+esc(pfMon(A.from))+' – '+esc(pfMon(A.to))+', '+A.n+' months): <b>'+pfUsd(A.profit)+'</b> → '+pfUsd(A.month)+' of profit a month = <b>'+pfUsd(addC)+'</b> of contracts a month'+(A.final?'.':'. <b>Not final</b>: it is recalculated once December 2026 closes; until then 2027 months show no goal.'):'No 2026 profit yet.')+
     ' Contracts booked = Contract total on the Leads tab, in the month the deposit was paid.</p>';
   var rows=(P.rows||[]).filter(function(r){ return r.key>='2026-01'; }).slice().reverse();
   h+='<div class="tbl fit"><table><tr><th>Month</th><th>Costs</th><th>Final payments due<br><span class="dim">next month’s weddings</span></th><th>Minimum</th><th>Goal</th><th>Contracts booked</th><th>% of minimum</th><th>Left to sell · minimum</th><th>% of goal</th><th>Left to sell · goal</th></tr>';
@@ -1585,7 +1619,7 @@ function tgTarget(P){
   rows.forEach(function(r){
     var k=r.key, nx=tgNext(k), F=T.finErr?null:(T.fin||{})[nx]||{amt:0,n:0,noDep:[],noCt:[]}, wt=r.status==='Waiting';
     var lyk=(+k.slice(0,4)-1)+k.slice(4), ly=wt?(P.rows||[]).filter(function(x){ return x.key===lyk&&x.status!=='Waiting'&&x.total!==null&&x.total!==undefined; })[0]:null;
-    var cost=wt?(ly?ly.total:null):r.total, min=(cost===null||F===null)?null:Math.max(0,(cost-F.amt)/TG_DEP);
+    var cost=wt?(ly?tgCostOf(P,ly).cost:null):tgCostOf(P,r).cost, min=(cost===null||F===null)?null:Math.max(0,(cost-F.amt)/TG_DEP);
     var goal=null, gnote='minimum only';
     if(k>='2027-01'){ if(A.final&&min!==null){ goal=min+addC; gnote=''; } else gnote='waits for December 2026 to close'; }
     var B=tgBooked(T,[k]);
