@@ -1584,22 +1584,23 @@ function tgTarget(P){
   var miss=[];
   rows.forEach(function(r){
     var k=r.key, nx=tgNext(k), F=T.finErr?null:(T.fin||{})[nx]||{amt:0,n:0,noDep:[],noCt:[]}, wt=r.status==='Waiting';
-    var cost=wt?null:r.total, min=(cost===null||F===null)?null:Math.max(0,(cost-F.amt)/TG_DEP);
+    var lyk=(+k.slice(0,4)-1)+k.slice(4), ly=wt?(P.rows||[]).filter(function(x){ return x.key===lyk&&x.status!=='Waiting'&&x.total!==null&&x.total!==undefined; })[0]:null;
+    var cost=wt?(ly?ly.total:null):r.total, min=(cost===null||F===null)?null:Math.max(0,(cost-F.amt)/TG_DEP);
     var goal=null, gnote='minimum only';
     if(k>='2027-01'){ if(A.final&&min!==null){ goal=min+addC; gnote=''; } else gnote='waits for December 2026 to close'; }
     var B=tgBooked(T,[k]);
     if(F&&(F.noDep.length||F.noCt.length)) miss.push('<b>'+esc(pfMon(nx))+'</b> weddings'+(F.noDep.length?' with no deposit amount (not counted in finals): '+F.noDep.map(esc).join(', '):'')+(F.noCt.length?(F.noDep.length?'; ':' ')+'with no contract total: '+F.noCt.map(esc).join(', '):''));
     if(B.noCt.length) miss.push('<b>'+esc(pfMon(k))+'</b> bookings with no contract total on Leads (not counted in booked): '+B.noCt.map(esc).join(', '));
     h+='<tr><td>'+esc(pfMon(k))+pfBadge(r)+'</td>'+
-      '<td>'+(wt?'<span class="dim">not in yet</span><br><span class="dim">so far '+pfUsd(r.total)+'</span>':pfUsd(cost))+'</td>'+
+      '<td>'+(wt?(ly?pfUsd(cost)+'<br><span class="dim">stand-in: '+esc(pfMon(lyk))+' costs · so far this month '+pfUsd(r.total)+'</span>':'<span class="dim">not in yet</span><br><span class="dim">so far '+pfUsd(r.total)+'</span>'):pfUsd(cost))+'</td>'+
       '<td>'+(F===null?'<span class="dim">—</span>':pfUsd(F.amt)+'<br><span class="dim">'+F.n+' wedding'+(F.n===1?'':'s')+' in '+esc(monthName(nx,1))+'</span>')+'</td>'+
-      '<td>'+(min===null?'<span class="dim">—</span>':'<b>'+pfUsd(min)+'</b>'+(cost!==null&&F&&cost-F.amt<=0?'<br><span class="dim">finals cover all costs</span>':''))+'</td>'+
+      '<td>'+(min===null?'<span class="dim">—</span>':'<b>'+pfUsd(min)+'</b>'+(wt&&ly?'<br><span class="dim">stand-in</span>':'')+(cost!==null&&F&&cost-F.amt<=0?'<br><span class="dim">finals cover all costs</span>':''))+'</td>'+
       '<td>'+(goal===null?'<span class="dim">'+gnote+'</span>':'<b>'+pfUsd(goal)+'</b>')+'</td>'+
       '<td><b>'+pfUsd(B.amt)+'</b><br><span class="dim">'+B.n+' booking'+(B.n===1?'':'s')+(wt?' so far':'')+'</span></td>'+
       '<td>'+tgPctCell(B.amt,min)+'</td><td>'+tgLeftCell(B.amt,min)+'</td><td>'+tgPctCell(B.amt,goal)+'</td><td>'+tgLeftCell(B.amt,goal)+'</td></tr>';
   });
   h+='</table></div>';
-  h+='<p class="note">“—” = a number the Tower does not have yet; nothing is estimated. A month’s costs show once QuickBooks has the whole month (the current month shows “not in yet”).'+(miss.length?' Missing data: '+miss.join(' · ')+'.':'')+'</p>';
+  h+='<p class="note">“—” = a number the Tower does not have yet; nothing is estimated. A month’s costs show once QuickBooks has the whole month. Until then (the current month) the minimum uses the same month last year’s costs as a stand-in, marked “stand-in” (asked by Rafael 11/10/2026); it switches to the real costs by itself when the month closes.'+(miss.length?' Missing data: '+miss.join(' · ')+'.':'')+'</p>';
   return h;
 }
 /* ---------- Profit by lead source (asked by Rafael 11/10/2026). Bookings by deposit month, from the Leads tab (Source, Package, Contract total).
