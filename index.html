@@ -266,7 +266,7 @@ function server(fn, args, ok, fail){
   if (!API) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[fn].apply(r, args); return; }
   var req = fn === 'ccAct'
     ? fetch(API, { method:'POST', credentials:'omit', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ fn:'act', args:args }) })
-    : fetchWithTimeout(API + '?api=' + (fn === 'ccLoad' ? 'load' : fn === 'ccMarketing' ? 'mkt' : 'version') + '&k=' + encodeURIComponent(args[0]), fn === 'ccMarketing' ? 40000 : 15000);
+    : fetchWithTimeout(API + '?api=' + (fn === 'ccLoad' ? 'load' : fn === 'ccMarketing' ? 'mkt' : 'version') + '&k=' + encodeURIComponent(args[0]) + (fn === 'ccMarketing' && args[1] ? '&fresh=1' : ''), fn === 'ccMarketing' ? (args[1] ? 150000 : 60000) : 15000);
   req.then(function(res){ if (!res.ok) throw new Error('The server did not answer (' + res.status + '). Please try again in a moment.'); return res.json(); })
      .then(function(j){ if (j && j.error) fail(new Error(j.error)); else ok(j.result); })
      .catch(function(e){ if (e && e.name === 'AbortError') { var t = new Error('Google is taking too long to answer.'); t.timeout = true; return fail(t); }
@@ -1063,10 +1063,32 @@ var MSH=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'
 function mkPrev(m){ var y=+m.slice(0,4), mo=+m.slice(5,7)-1; if(!mo){ y--; mo=12; } return y+'-'+('0'+mo).slice(-2); }
 function mkLY(m){ return (+m.slice(0,4)-1)+m.slice(4); }
 function mkName(m,short){ return monthName(m,short)+' '+m.slice(0,4); }
-function loadMkt(){
-  if(MKBUSY) return; MKBUSY=true; MKERR='';
-  server('ccMarketing',[BOOT.k],function(d){ MKBUSY=false; MK=d; if(!S.mm||!MK.m[S.mm]) S.mm=MK.cur; if(S.view==='mkt') renderMarketing(); },
-    function(e){ MKBUSY=false; MKERR=String((e&&e.message)||e); if(S.view==='mkt') renderMarketing(); });
+/* Marketing loads the same way the board does (11/16/2026): the last numbers this browser saw open at once, the server answers from its
+   own saved copy (rebuilt in the background on Google), and a slow answer is asked again by itself (3 tries) instead of showing an error. */
+var MKCOPY=0, MKTRY=0, MKNOTE='';
+function mkKey(){ return 'ep_mkt_' + (BOOT && BOOT.k || ''); }
+function mkSaveCopy(d){ try { localStorage.setItem(mkKey(), JSON.stringify({ t: Date.now(), d: d })); } catch (e) { try { localStorage.removeItem(mkKey()); } catch (e2) {} } }
+function mkReadCopy(){ try { var x = JSON.parse(localStorage.getItem(mkKey()) || 'null'); return x && x.d && x.d.m && x.d.months && (Date.now() - x.t) < 7*864e5 ? x : null; } catch (e) { return null; } }
+function mkClock(ms){ var d=new Date(ms), same=d.toDateString()===new Date().toDateString(); return (same?'':(d.getMonth()+1)+'/'+d.getDate()+' ')+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }
+function mkPaint(){ if(S.view==='mkt'&&S.mtab!=='ig'){ var y=window.scrollY; renderMarketing(); window.scrollTo(0,y); } }
+function loadMkt(fresh){
+  if(MKBUSY) return; MKBUSY=true; MKERR=''; MKTRY=0;
+  if(!MK){ var c=mkReadCopy(); if(c){ MK=c.d; MKCOPY=c.t; if(!S.mm||!MK.m[S.mm]) S.mm=MK.cur; } }
+  function go(){
+    MKTRY++;
+    server('ccMarketing',[BOOT.k,fresh?1:0],function(d){
+      MKBUSY=false; MK=d; MKCOPY=0; MKNOTE=''; mkSaveCopy(d);
+      if(!S.mm||!MK.m[S.mm]) S.mm=MK.cur;
+      if(!fresh&&d.cache&&d.cache.stale) loadMkt(true);            /* the server's copy is old: get new numbers quietly, the page keeps what it shows */
+      mkPaint();
+    },function(e){
+      if(e&&e.timeout&&MKTRY<3) return go();                         /* Google was slow: ask again by itself */
+      MKBUSY=false;
+      if(MK){ MKNOTE='Could not get newer numbers just now ('+String((e&&e.message)||e)+')'; mkPaint(); return; }
+      MKERR=String((e&&e.message)||e); if(S.view==='mkt') renderMarketing();
+    });
+  }
+  go();
 }
 function mkHas(m){ return !!(MK && MK.m[m]) && (m>='2026-01' || (MK.history&&MK.history.rows>0)); }
 function mkV(m,k,fair){ if(!mkHas(m)) return null; var x=MK.m[m]; return fair?x.upto[k]:x.n[k]; }
@@ -1172,10 +1194,24 @@ function mkTrend(){
 function mkSrcSum(t,key,f){ /* same cut-off as the numbers: a period in progress is compared up to the same day */
   var o={}, ms=pMonths(t,key), idx=pIdx(); if(idx>=0) ms=ms.slice(0,idx+1);
   for(var i=0;i<ms.length;i++){ if(!mkHas(ms[i])) return null; var x=MK.m[ms[i]][idx>=0&&i===idx?f+'U':f]||{}; Object.keys(x).forEach(function(n){ o[n]=(o[n]||0)+x[n]; }); } return o; }
+/* 11/16/2026: “Instagram Ad” has its own row, next to Instagram. The server sends, per source, [inquiries, calls, booked, contract $, booked without a total]
+   (MK.m[month].sx, and sxU for the month so far). Older answers from the server do not have it; then the section works as before. */
+function mkHasSx(){ return !!(MK&&MK.m&&MK.m[MK.cur]&&MK.m[MK.cur].sx); }
+function mkSxSum(t,key){
+  var o={}, ms=pMonths(t,key), idx=pIdx(); if(idx>=0) ms=ms.slice(0,idx+1);
+  for(var i=0;i<ms.length;i++){ if(!mkHas(ms[i])) return null; var x=MK.m[ms[i]][idx>=0&&i===idx?'sxU':'sx']||{};
+    Object.keys(x).forEach(function(n){ var a=o[n]||(o[n]=[0,0,0,0,0]); for(var j=0;j<5;j++) a[j]+=(+x[n][j]||0); }); }
+  return o; }
+function mkSxCol(o,j){ if(!o) return null; var r={}; Object.keys(o).forEach(function(n){ if(o[n][j]) r[n]=o[n][j]; }); return r; }
+function mkSxMoney(a){ if(!a||!a[2]) return '<span class="dim">—</span>'; var known=a[2]-(a[4]||0);
+  return (known?pfUsd(a[3]):'<span class="dim">—</span>')+(a[4]?'<br><span class="dim">'+a[4]+' of '+a[2]+' without a contract total</span>':''); }
 function mkSources(){
-  var t=mkT(), sel=pSel(), p=pPrev(t,sel), ly=pLY(t,sel), X=mkSrcSum(t,sel,'src')||{}, XB=mkSrcSum(t,sel,'bsrc')||{}, P=mkSrcSum(t,p,'src'), Y=mkSrcSum(t,ly,'src'), YB=mkSrcSum(t,ly,'bsrc');
+  var t=mkT(), sel=pSel(), p=pPrev(t,sel), ly=pLY(t,sel), sx=mkHasSx(), SX=sx?(mkSxSum(t,sel)||{}):null;
+  var X=sx?mkSxCol(SX,0):(mkSrcSum(t,sel,'src')||{}), XB=sx?mkSxCol(SX,2):(mkSrcSum(t,sel,'bsrc')||{}), P=sx?mkSxCol(mkSxSum(t,p),0):mkSrcSum(t,p,'src'), Y=sx?mkSxCol(mkSxSum(t,ly),0):mkSrcSum(t,ly,'src'), YB=sx?mkSxCol(mkSxSum(t,ly),2):mkSrcSum(t,ly,'bsrc');
   var names={}; [X,P,Y,XB].forEach(function(o){ Object.keys(o||{}).forEach(function(n){ names[n]=1; }); });
+  if(sx){ Object.keys(SX).forEach(function(n){ if(SX[n][1]) names[n]=1; }); if(names['Instagram']) names['Instagram Ad']=1; }   /* the ad row is always there, even at 0 */
   var list=Object.keys(names).filter(function(n){ return n!=='No inquiry form'; }).sort(function(a,b){ return (X[b]||0)-(X[a]||0) || ((P&&P[b])||0)-((P&&P[a])||0); });
+  if(sx&&list.indexOf('Instagram')>=0&&list.indexOf('Instagram Ad')>=0){ list.splice(list.indexOf('Instagram Ad'),1); list.splice(list.indexOf('Instagram')+1,0,'Instagram Ad'); }
   var tot=Object.keys(X).reduce(function(s,n){ return s+X[n]; },0) || 1, max=1;
   list.forEach(function(n){ max=Math.max(max,X[n]||0,(Y&&Y[n])||0); });
   var W=520, RH=30, h='<svg viewBox="0 0 '+W+' '+(list.length*RH+4)+'" role="img" aria-label="Inquiries by source">';
@@ -1189,12 +1225,13 @@ function mkSources(){
   });
   h+='</svg>';
   var cmp=t!=='year';
-  var tb='<div class="tbl fit"><table><tr><th>Source</th><th>'+esc(pLabel(t,sel))+'</th>'+(cmp?'<th>'+esc(pLabel(t,p))+'</th><th>Change</th>':'')+'<th>'+esc(pLabel(t,ly))+'</th><th>Change</th><th>Booked</th><th>Booked last yr</th></tr>';
+  var tb='<div class="tbl fit"><table><tr><th>Source</th><th>'+(sx?'Inquiries · ':'')+esc(pLabel(t,sel))+'</th>'+(cmp?'<th>'+esc(pLabel(t,p))+'</th><th>Change</th>':'')+'<th>'+esc(pLabel(t,ly))+'</th><th>Change</th>'+(sx?'<th>Calls</th>':'')+'<th>Booked</th>'+(sx?'<th>Contract $ booked</th>':'')+'<th>Booked last yr</th></tr>';
   list.concat(XB['No inquiry form']||(YB&&YB['No inquiry form'])?['No inquiry form']:[]).forEach(function(n){
     var v=X[n]||0, pv=P?(P[n]||0):null, lv=Y?(Y[n]||0):null, d1=mkDelta(v,pv,true), d2=mkDelta(v,lv,true), nf=n==='No inquiry form';
-    tb+='<tr><td>'+esc(n)+'</td><td>'+(nf?'':v)+'</td>'+(cmp?'<td class="dim">'+(nf?'':pv===null?'—':pv)+'</td><td class="'+(nf?'':d1.c)+'">'+(nf?'':d1.t)+'</td>':'')+'<td class="dim">'+(nf?'':lv===null?'—':lv)+'</td><td class="'+(nf?'':d2.c)+'">'+(nf?'':d2.t)+'</td><td>'+(XB[n]||0)+'</td><td class="dim">'+(YB?(YB[n]||0):'—')+'</td></tr>';
+    tb+='<tr><td>'+esc(n)+'</td><td>'+(nf?'':v)+'</td>'+(cmp?'<td class="dim">'+(nf?'':pv===null?'—':pv)+'</td><td class="'+(nf?'':d1.c)+'">'+(nf?'':d1.t)+'</td>':'')+'<td class="dim">'+(nf?'':lv===null?'—':lv)+'</td><td class="'+(nf?'':d2.c)+'">'+(nf?'':d2.t)+'</td>'+(sx?'<td>'+(((SX[n]||[])[1])||0)+'</td>':'')+'<td>'+(XB[n]||0)+'</td>'+(sx?'<td>'+mkSxMoney(SX[n])+'</td>':'')+'<td class="dim">'+(YB?(YB[n]||0):'—')+'</td></tr>';
   });
   tb+='</table></div>';
+  if(sx) tb+='<p class="note">Instagram = brides who picked “Instagram” on the inquiry form; Instagram Ad = brides who picked “Instagram Ad” (same answer the Brides cards and the Leads tab show). Many brides who came from an ad still pick “Instagram”, so the ad row is a floor, not the whole truth. Inquiries count on the day the inquiry came in, calls on the day the call was booked, Booked and Contract $ on the day the deposit was paid. Contract $ = “Contract total” on the Leads tab.</p>';
   return {chart:h, table:tb, empty:!list.length};
 }
 
@@ -2131,24 +2168,48 @@ function gafWord(s){ var m={ENABLED:'On',PAUSED:'Paused',REMOVED:'Removed',ELIGI
   return m[s]||(s?String(s).charAt(0)+String(s).slice(1).toLowerCase().replace(/_/g,' '):'—'); }
 function gafWhen(iso){ if(!iso) return '—'; var d=String(iso); return ccUs(d.slice(0,10))+(d.length>15?' '+d.slice(11,16):''); }
 /* ---------- Meta ads per ad set and per ad (approved by Rafael 11/09/2026): the newest nightly file (MK.maf). Meta's lead count is a hint only. */
+/* 11/16/2026: every row shows its Meta IDs (campaign, ad set, ad), the dates it covers and the counting window Meta used for its leads */
+var MAF_ATTR={'1d_click':'1-day click','7d_click':'7-day click','28d_click':'28-day click','1d_view_1d_click':'1-day click or 1-day view','1d_view_7d_click':'7-day click or 1-day view',
+  '7d_view_7d_click':'7-day click or 7-day view','1d_view_28d_click':'28-day click or 1-day view','1d_click_1d_ev':'1-day click or 1-day engaged view','7d_click_1d_ev':'7-day click or 1-day engaged view',
+  '1d_view_1d_click_1d_ev':'1-day click, 1-day view or 1-day engaged view','1d_view_7d_click_1d_ev':'7-day click, 1-day view or 1-day engaged view','multiple':'mixed (ad sets differ)','na':'none applies','custom':'custom'};
+function mafAttr(a){ a=String(a||''); return a?(MAF_ATTR[a]||a.replace(/_/g,' ')):''; }
+function mafIds(x,kind){ var b=[]; if(kind==='ad'){ if(x.id) b.push('Ad ID '+x.id); if(x.adset_id) b.push('Ad set ID '+x.adset_id); } else if(x.id) b.push('Ad set ID '+x.id);
+  b.push(x.campaign_id?'Campaign ID '+x.campaign_id:'Campaign ID —'); return b.join(' · '); }
+function mafDates(F,w){ var r=String((F.windows||{})[w]||''), p=r.split('..'), us=function(i){ return /^\d{4}-\d{2}-\d{2}$/.test(i)?ccUs(i):i; }; return p.length===2?us(p[0])+' to '+us(p[1]):us(r); }
 function mafRow(x,w,kind){ var m=x[w]||{}, s=+m.spend||0, l=+m.leads||0, c=+m.clicks||0, im=+m.impr||0;
-  return '<tr><td>'+esc(x.name||'')+'<br><span class="dim">'+esc(kind==='ad'?(x.adset||''):(x.campaign||''))+'</span></td><td>'+esc(x.company||'')+'</td><td>'+esc(String(x.status||'').replace(/_/g,' ').toLowerCase())+'</td><td><b>'+pfUsd(s)+'</b></td><td>'+(im?im.toLocaleString('en-US'):'0')+'</td><td>'+c+'</td><td>'+(im?(c/im*100).toFixed(2)+'%':'—')+'</td><td>'+(c?pfUsd(s/c):'—')+'</td><td>'+l+'</td><td>'+(l?pfUsd(s/l):'—')+'</td></tr>'; }
+  return '<tr><td>'+esc(x.name||'')+'<br><span class="dim">'+esc(kind==='ad'?(x.adset||''):(x.campaign||''))+'</span><br><span class="dim" style="font-size:11px">'+esc(mafIds(x,kind))+'</span></td><td>'+esc(x.company||'')+'</td><td>'+esc(String(x.status||'').replace(/_/g,' ').toLowerCase())+'</td><td class="dim">'+(x.attribution?esc(mafAttr(x.attribution)):'—')+'</td><td><b>'+pfUsd(s)+'</b></td><td>'+(im?im.toLocaleString('en-US'):'0')+'</td><td>'+c+'</td><td>'+(im?(c/im*100).toFixed(2)+'%':'—')+'</td><td>'+(c?pfUsd(s/c):'—')+'</td><td>'+l+'</td><td>'+(l?pfUsd(s/l):'—')+'</td></tr>'; }
 function mafSection(){
   var F=MK.maf, h='<section class="sec"><h2>Meta ads · by ad set and by ad</h2>';
   if(!F||F.err||!F.adsets) return h+'<div class="warn-box">'+esc((F&&F.err)||'No Meta ad set file yet.')+'</div></section>';
   var W=S.mafw||'last30', lab={yesterday:'Yesterday',month:'This month',last30:'Last 30 days'};
   h+='<div class="row" style="margin:0 0 8px">'+['yesterday','month','last30'].map(function(k){ return '<button class="chip'+(W===k?' on':'')+'" onclick="S.mafw=\''+k+'\';renderMarketing()">'+lab[k]+' <span class="dim">'+esc((F.windows||{})[k]||'')+'</span></button>'; }).join(' ')+'</div>';
   var T=(F.totals||{})[W]||{};
-  h+='<p class="lede">Spend, '+esc(lab[W].toLowerCase())+': EP '+pfUsd(T.ep)+' · Prism Haus '+pfUsd(T.prism)+' · boosted posts '+pfUsd(T.boosted)+'. Saved '+esc(F.built||'')+'.</p>';
+  var A=F.attribution||{}, aset=(A.settings||[]).map(mafAttr).filter(String);
+  h+='<p class="lede">Spend, '+esc(lab[W].toLowerCase())+' (<b>'+esc(mafDates(F,W))+'</b>): EP '+pfUsd(T.ep)+' · Prism Haus '+pfUsd(T.prism)+' · boosted posts '+pfUsd(T.boosted)+'. Saved '+esc(F.built||'')+'.'+
+     ' Counting window for “Meta leads”: <b>'+(aset.length?esc(aset.join(' / ')):'not in this file yet')+'</b>.</p>';
   if(F.warnings&&F.warnings.length) h+='<div class="warn-box">'+F.warnings.map(esc).join('<br>')+'</div>';
   function tbl(list,kind){
     list=list.filter(function(x){ return ((x[W]||{}).spend||0)>0||/^ACTIVE$/.test(x.status||''); }).sort(function(a,b){ return ((b[W]||{}).spend||0)-((a[W]||{}).spend||0); });
     if(!list.length) return '<p class="sub">Nothing spent in this period.</p>';
-    return '<div class="tbl fit"><table><tr><th>'+(kind==='ad'?'Ad':'Ad set')+'</th><th>Company</th><th>Status</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>Click rate</th><th>Cost per click</th><th>Meta leads</th><th>Cost per Meta lead</th></tr>'+list.map(function(x){ return mafRow(x,W,kind); }).join('')+'</table></div>';
+    return '<div class="tbl fit"><table><tr><th>'+(kind==='ad'?'Ad':'Ad set')+'</th><th>Company</th><th>Status</th><th>Counting window</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>Click rate</th><th>Cost per click</th><th>Meta leads</th><th>Cost per Meta lead</th></tr>'+list.map(function(x){ return mafRow(x,W,kind); }).join('')+'</table></div>';
+  }
+  /* one row per ad per day, with its date and IDs (the nightly file's "daily" part) */
+  function days(){
+    var D=F.daily, rows=(D&&D.rows)||[];
+    if(!D) return '<p class="note">Day-by-day rows (date, campaign ID, ad set ID, ad ID) are not in this file: they start with the first file saved after 11/16/2026.</p>';
+    var r=String((F.windows||{})[W]||''), q=r.split('..'), from=q[0], to=q.length===2?q[1]:q[0];
+    rows=rows.filter(function(x){ return x.date>=from&&x.date<=to; }).sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:(+b.spend||0)-(+a.spend||0); });
+    if(!rows.length) return '<p class="sub">No day-by-day rows in this period.</p>';
+    var tot=rows.reduce(function(a,x){ return a+(+x.spend||0); },0);
+    var t='<details style="margin-top:8px"'+(W==='yesterday'?' open':'')+'><summary class="sub" style="cursor:pointer">Day by day · '+rows.length+' row'+(rows.length===1?'':'s')+' (one per ad per day) · '+pfUsd(tot)+'</summary><div class="tbl fit"><table><tr><th>Date</th><th>Ad</th><th>Company</th><th>Campaign ID</th><th>Ad set ID</th><th>Ad ID</th><th>Counting window</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>Meta leads</th></tr>';
+    rows.forEach(function(x){ t+='<tr><td>'+esc(ccUs(x.date))+'</td><td>'+esc(x.ad||'')+'<br><span class="dim">'+esc((x.adset||'')+(x.campaign?' · '+x.campaign:''))+'</span></td><td>'+esc(x.company||'')+'</td><td class="dim">'+esc(x.campaign_id||'—')+'</td><td class="dim">'+esc(x.adset_id||'—')+'</td><td class="dim">'+esc(x.ad_id||'—')+'</td><td class="dim">'+(x.attribution?esc(mafAttr(x.attribution)):'—')+'</td><td><b>'+pfUsd(+x.spend||0)+'</b></td><td>'+((+x.impr||0).toLocaleString('en-US'))+'</td><td>'+(+x.clicks||0)+'</td><td>'+(+x.leads||0)+'</td></tr>'; });
+    return t+'</table></div></details>';
   }
   h+='<h3 style="margin:12px 0 6px;font-size:15px">Ad sets</h3>'+tbl(F.adsets||[],'adset');
   h+='<h3 style="margin:16px 0 6px;font-size:15px">Ads</h3>'+tbl(F.ads||[],'ad');
-  h+='<p class="note">Straight from Meta, read every night around 3:10 AM by a cloud task (read only; it never changes the ads). “Meta leads” is Meta’s own count from the website pixel: a hint, not the truth. Real leads come from the inbox and the Leads tab.</p>';
+  h+='<h3 style="margin:16px 0 6px;font-size:15px">Day by day</h3>'+days();
+  h+='<p class="note">Straight from Meta, read every night around 3:10 AM by a cloud task (read only; it never changes the ads). “Meta leads” is Meta’s own count from the website pixel: a hint, not the truth. Real leads come from the inbox and the Leads tab. '+
+     'Counting window = how long after someone clicks or sees an ad Meta still gives that ad the credit for a lead; it is the setting on each ad set in Meta, shown here as Meta reports it (nothing is changed).</p>';
   return h+'</section>';
 }
 function gafSection(){
@@ -2202,16 +2263,28 @@ function gafSection(){
   h+='<p class="note">Saved by the cloud task “EP Films Google Ads — daily feed + watch” as '+esc(D._name||'')+' in the same Drive folder as the 3am ad-spend files. Uses about 6 Zapier tasks a day plus ~18 on the weekly check.</p>';
   return h+'</section>';
 }
+/* header line: when the emails were last read (Marketing's own stamp; while it loads, the same stamp the Brides view shows) and how old the numbers are */
+function mkHeadTimes(){
+  var read=(MK&&MK.updated)||((S.data&&S.data.pipeline&&S.data.pipeline.updated)||''), h=' · emails read '+(read?esc(read):'<span class="dim">time not known yet</span>');
+  if(MK){
+    var at=MKCOPY?MKCOPY:(MK.cache&&MK.cache.at)||MK.builtMs||0;
+    if(at) h+=' · numbers from '+esc(mkClock(at));
+    if(MKBUSY) h+=' · <b>updating…</b>';
+  }
+  return h;
+}
 function renderMarketing(){
   var d=S.data, ig=S.mtab==='ig';
   var h='<header><div><h1>'+(ig?'Instagram <span class="ver">new</span>':'Marketing <span class="ver">alpha 2</span>')+'</h1><div class="sub">Only you see this · today '+esc(d.today)+
-    (ig?' · Stories read every hour, Reels and account every morning':(MK&&MK.updated?' · emails read '+esc(MK.updated):'')+' · updates by itself at 6 AM, 12 PM and 6 PM')+'</div></div>'+
-    '<div class="row" style="margin:0">'+viewSwitch()+mkTabs()+'<button class="chip" onclick="'+(ig?'IG=null;loadIg();renderMarketing()':'MK=null;loadMkt();renderMarketing()')+'">Refresh</button></div></header>';
+    (ig?' · Stories read every hour, Reels and account every morning':mkHeadTimes()+' · updates by itself at 6 AM, 12 PM and 6 PM')+'</div></div>'+
+    '<div class="row" style="margin:0">'+viewSwitch()+mkTabs()+'<button class="chip" onclick="'+(ig?'IG=null;loadIg();renderMarketing()':'loadMkt(true);renderMarketing()')+'">Refresh</button></div></header>';
   if(ig) return renderInstagram(h);
   if(!MK){
     h+=MKERR?'<div class="warn-box">Marketing could not load: '+esc(MKERR)+' <button class="chip" onclick="loadMkt();renderMarketing()">Try again</button></div>':'<p class="sub">Loading the numbers…</p>';
-    document.getElementById('app').innerHTML=h; if(!MKERR) loadMkt(); return;
+    document.getElementById('app').innerHTML=h; if(!MKERR) loadMkt(); if(!MK) return;
+    return renderMarketing();                                     /* a saved copy was found: show it now, new numbers replace it when they arrive */
   }
+  if(MKNOTE) h+='<div class="warn-box">'+esc(MKNOTE)+'. Showing the numbers from '+esc(mkClock(MKCOPY||(MK.cache&&MK.cache.at)||MK.builtMs||Date.now()))+'. <button class="chip" onclick="MKNOTE=\'\';loadMkt();renderMarketing()">Try again</button></div>';
   var t=mkT(), sel=pSel(), fair=pFair(), cm=mkCmps();
   h+='<div class="mk">';
   /* period switch + period picker */
